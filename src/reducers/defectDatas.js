@@ -1,42 +1,36 @@
-import { FIND_ITEMS,GET_ITEMS,GET_ITEM_BY_ID,SET_MESSAGE_NULL,START_LOADING_HOME,END_LOADING_HOME } from "../constant/actionTypes";
+import { CREATE_DEFECT_DATA,GET_DEFECT_DATAS,SET_MESSAGE_NULL,START_LOADING_HOME,END_LOADING_HOME } from "../constant/actionTypes";
 
 const defaultState = {
     isLoading: false,
-    items:[],
+    defectDatas:[],
+    defectDetailsLogs:null,
     currentPage:1,
     numberOfPages:1,
     total:1,
     message: null,
-    selectedItem: null,
 }
 
 
 export default(state = defaultState,action) =>{
     switch(action.type){
-        case GET_ITEMS:
-            const {items,currentPage,numberOfPages } = action.payload;
+        case GET_DEFECT_DATAS:
             return {
                 ...state,
-                items,
-                currentPage,
-                numberOfPages,
+                defectDatas: action.payload?.defectDetails,
+                defectDetailsLogs: action.payload,
                 message: null,
-                selectedItem: null
             };
-        case GET_ITEM_BY_ID:
-        case FIND_ITEMS:
-            if(action.payload?.message === 'no found'){
+        case CREATE_DEFECT_DATA:
+            if(action.payload?.message === 'duplicate')
                 return {
                     ...state,
-                    message:"no found",
-                    items: [],
+                    message: 'duplicate',
                 }
-            }else if(action.payload?.message === 'item found'){
+            else if(action.payload?.message === 'good')
                 return {
                     ...state,
-                    items: action.payload?.items,
-                    message: "item found",
-                }
+                    message:'good',
+                    defectDatas :action.payload?.defectDatas
             };
         case START_LOADING_HOME:
             return{

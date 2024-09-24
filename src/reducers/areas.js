@@ -1,16 +1,16 @@
-import { GET_MOLD_MATERIALS,START_LOADING_HOME,END_LOADING_HOME } from "../constant/actionTypes";
+import { GET_AREAS,START_LOADING_HOME,END_LOADING_HOME } from "../constant/actionTypes";
 
 const defaultState = {
     isLoading: false,
-    moldMaterials:[],
+    areas:[],
 }
 
 export default(state = defaultState,action) =>{
     switch(action.type){
-        case GET_MOLD_MATERIALS:
+        case GET_AREAS:
             return {
                 ...state,
-                moldMaterials: action.payload
+                areas: action.payload
             };
         case START_LOADING_HOME:
             return{

@@ -1,20 +1,22 @@
 import { combineReducers } from "redux";
-import molds from './molds';
-import deliveries from './deliveries';
+import inspections from './inspections';
 import items from './items';
 import buyers from "./buyers";
+import areas from "./areas";
+import defects from "./defects";
 import materials from "./materials";
-import moldMaterials from "./moldMaterials";
 import suppliers from "./suppliers";
 import auth from './auth';
+import defectDatas from './defectDatas';
 
 export default combineReducers({
-    molds,
+    inspections,
     items,
-    deliveries,
+    areas,
+    defects,
     buyers,
     materials,
-    moldMaterials,
     suppliers,
     auth,
+    defectDatas
 });

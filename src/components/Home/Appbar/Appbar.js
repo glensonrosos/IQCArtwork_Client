@@ -12,6 +12,7 @@ import { changePassword } from '../../../actions/auth';
 import { useNavigate,useLocation } from 'react-router';
 import { AUTH_LOGOUT } from '../../../constant/actionTypes';
 import decode from 'jwt-decode';
+import { WindowSharp } from '@mui/icons-material';
 
 
 export default function MenuAppBar() {
@@ -48,6 +49,7 @@ export default function MenuAppBar() {
   useEffect(() => {
     const interval = setInterval(() => {
       setRemaining(Math.ceil(getRemainingTime() / 1000))
+      
     }, 500)
 
     return () => {
@@ -57,7 +59,9 @@ export default function MenuAppBar() {
 
   useEffect(() => {
     if(state === 'Idle'){
-      window.location.reload();
+      //if location is = pass-details dont reload
+      if(location.pathname != '/pass-details')
+          window.location.reload();
     }
   },[state]);
 
@@ -164,14 +168,8 @@ export default function MenuAppBar() {
       <AppBar position="static" color="info">
         <Toolbar>
           <Link variant="h6" href="/"  sx={{ flexGrow: 1,color:"#fff",textDecoration:"none", fontSize:32 }}>
-            Mold Monitoring
+            IQC Artwork
           </Link>
-          {/* <Button variant="contained" color="success" href="/mold-monitoring" sx={{mr:5}}>
-            Mold Monitoring
-          </Button>
-          <Button variant="contained" color="error" href="/mold-details" sx={{mr:5}}>
-            Mold Details
-          </Button> */}
           {
             <div>
               <Grid container rowSpacing={1} direction="row" justifyContent="center" alignItems="center" columnSpacing={{ xs: 1, sm: 2, md: 3 }}>

@@ -3,22 +3,17 @@ import {Avatar,Button,CssBaseline,TextField,FormControlLabel,Checkbox,Link,
     Paper,Box,Grid,Typography,Badge,Stack,Alert,Snackbar} from '@mui/material'
 import {LockOutlined} from '@mui/icons-material/';
 import { createTheme, ThemeProvider } from '@mui/material/styles';
-import PebaImage from '../images/mold.png';
+import PebaImage from '../images/artwork.jpg';
 import {useDispatch,useSelector} from 'react-redux';
 import { useNavigate } from 'react-router';
 import { signIn } from '../../actions/auth';
 
-// DEPARTMENT
-// 65fd1ff34a6643e95585e95c - QA
-// 65fd20084a6643e95585e95d - IQC
-// 65fd20114a6643e95585e95e - Production
-// 65fd201d4a6643e95585e95f - Purchasing
 
 
 
 function Copyright(props) {
   return (
-    <Typography variant="body2" color="text.secondary" align="center" {...props}>
+    <Typography variant="body2" color="text.info" align="center" {...props}>
       {'Copyright © '}
       <Link color="inherit" href="https://www.facebook.com/photo/?fbid=4352108184856470&set=a.119322791468385">
         GlensonPinakaGwapo
@@ -110,9 +105,9 @@ export default function SignInSide() {
             <Stack 
                 direction={{ xs: 'row', sm: 'row' }}
                 spacing={{ xs: 8, sm: 8, md: 8 }} useFlexGap flexWrap="wrap">
-              <Typography variant="h6" >MOLD MONITORING Program</Typography>
+              <Typography variant="h6" >IQC ARTWORK Program</Typography>
             </Stack>
-            <Avatar sx={{ m: 1, bgcolor: 'secondary.main',mt:5 }}>
+            <Avatar sx={{ m: 1, bgcolor: 'success.main',mt:5 }}>
               <LockOutlined />
             </Avatar>
             <Typography component="h1" variant="h5">
@@ -143,7 +138,7 @@ export default function SignInSide() {
               <Button
                 fullWidth
                 variant="contained"
-                color='secondary'
+                color='success'
                 sx={{ mt: 3, mb: 2 }}
                 onClick={handleSubmit}
               >
