@@ -1,4 +1,4 @@
-import { CREATE_INSPECTION,GET_INSPECTIONS,GET_INSPECTIONS_BY_SEARCH,START_LOADING_HOME,END_LOADING_HOME,SET_MESSAGE_NULL,GET_INSPECTION_BY_ID, EDIT_INSPECTION} from "../constant/actionTypes";
+import { CREATE_INSPECTION,GET_INSPECTIONS,GET_EXPORT_REPORT_LIST,GET_INSPECTIONS_BY_SEARCH,START_LOADING_HOME,END_LOADING_HOME,SET_MESSAGE_NULL,GET_INSPECTION_BY_ID, EDIT_INSPECTION} from "../constant/actionTypes";
 
 const defaultState = {
     isLoading: false,
@@ -7,6 +7,8 @@ const defaultState = {
     numberOfPages:1,
     total:1,
     message: null,
+    inspectionsList:[],
+    defectDataList:[],
 }
 
 
@@ -64,6 +66,20 @@ export default(state = defaultState,action) =>{
                     message:'found',
                     inspections :action.payload?.inspection
             };
+        case GET_EXPORT_REPORT_LIST:
+            if(action.payload?.message == 'export list')
+                return{
+                    ...state,
+                    message: 'export list',
+                    inspectionsList: action.payload?.inspectionsList,
+                    defectDataList:  action.payload?.defectDataList,
+                }
+            else if(action.payload?.message == 'export no')
+                return{
+                    ...state,
+                    message: 'export no',
+                }
+           
         case START_LOADING_HOME:
             return{
                 ...state,

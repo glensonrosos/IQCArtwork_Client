@@ -1,21 +1,24 @@
 import React, { useState, useEffect } from 'react';
-import { DataGridPro,GridToolbarExport,GridToolbarContainer,GridToolbarColumnsButton  } from '@mui/x-data-grid-pro';
-import {Box,TextField, Autocomplete,Paper,Pagination,PaginationItem,Stack, FormControlLabel,Checkbox,Button,Backdrop,CircularProgress,Snackbar,Alert, Typography} from '@mui/material';
+import { DataGridPro,GridToolbarContainer,GridToolbarColumnsButton  } from '@mui/x-data-grid-pro';
+import {Box,TextField,Dialog,DialogTitle,IconButton,DialogContent,Autocomplete,Paper,Pagination,PaginationItem,Stack, FormControlLabel,Checkbox,Button,Backdrop,CircularProgress,Snackbar,Alert, Typography} from '@mui/material';
 import Grid from '@mui/material/Unstable_Grid2';
 
 import Accordion from '@mui/material/Accordion';
 import AccordionSummary from '@mui/material/AccordionSummary';
 import AccordionDetails from '@mui/material/AccordionDetails';
 import AccordionActions from '@mui/material/AccordionActions'
-import {Assessment, ExpandMore} from '@mui/icons-material/';
+import {Assessment, ExpandMore,Save,Close} from '@mui/icons-material/';
+
+import * as XLSX from 'xlsx';
+import { saveAs } from 'file-saver';
 
 import { DatePicker } from '@mui/x-date-pickers';
 import moment from 'moment';
 
+import Slide from '@mui/material/Slide';
+
 import { AUTH_LOGOUT } from '../../../../constant/actionTypes';
 import decode from 'jwt-decode';
-
-import {Save} from '@mui/icons-material';
 
 import CheckBoxOutlineBlankIcon from '@mui/icons-material/CheckBoxOutlineBlank';
 import CheckBoxIcon from '@mui/icons-material/CheckBox';
@@ -26,10 +29,14 @@ import {getBuyers} from '../../../../actions/buyers';
 import {getMaterials} from '../../../../actions/materials';
 import {getSuppliers} from '../../../../actions/suppliers';
 
-import {getInspections,getInspectionsBySearch} from '../../../../actions/inspections';
+import {getInspections,getInspectionsBySearch,getExportReportList,setInspectionMessageNull} from '../../../../actions/inspections';
 
 import {useNavigate,useLocation} from 'react-router-dom';
 
+
+const Transition = React.forwardRef(function Transition(props, ref) {
+  return <Slide direction="up" ref={ref} {...props} />;
+});
 
 function useQuery(){
   return new URLSearchParams(useLocation().search);
@@ -53,9 +60,19 @@ const InspectionTable = () => {
   const {suppliers,isLoading:supplierLoading} = useSelector(state=> state.suppliers);
   const {buyers,isLoading:buyerLoading} = useSelector(state=> state.buyers);
   const {materials,isLoading:materialLoading} = useSelector(state=> state.materials);
-  const {inspections,message:inspectionMessage,isLoading:inspectionLoading,numberOfPages} = useSelector(state=> state.inspections);
+  const {inspections,message:inspectionMessage,isLoading:inspectionLoading,numberOfPages,inspectionsList,defectDataList } = useSelector(state=> state.inspections);
   
   const[input,setInput] = useState({
+    itemCode: null,
+    supplier:null,
+    material:null,
+    buyer:null,
+    dateStart:null,
+    dateEnd:null,
+    unfinished:false,
+  });
+
+  const[inputReport,setInputReport] = useState({
     itemCode: null,
     supplier:null,
     material:null,
@@ -69,6 +86,15 @@ const InspectionTable = () => {
   const [inputSupplier,setInputSupplier] = useState([]);
   const [inputMaterial,setInputMaterial] = useState([]);
   const [inputBuyer,setInputBuyer] = useState([]);
+
+  const [inputSupplierReport,setInputSupplierReport] = useState([]);
+  const [inputMaterialReport,setInputMaterialReport] = useState([]);
+  const [inputBuyerReport,setInputBuyerReport] = useState([]);
+
+  const [isLoading, setIsLoading] = useState(false);
+
+  const [snackbar, setSnackbar] = useState(null);
+  const handleCloseSnackbar = () => setSnackbar(null);
 
   const handleChangePage = (newPage) =>{
     if(itemCode == '' && dateStart == '' && dateEnd == '' && supplier == '' && buyer == ''
@@ -105,14 +131,51 @@ const InspectionTable = () => {
       dispatch(getMaterials());
   },[dispatch]);
 
-  const [snackbar, setSnackbar] = useState(null);
-  const handleCloseSnackbar = () => setSnackbar(null);
+
+  useEffect(()=>{
+    if(!inspectionLoading && inspectionMessage == 'export list' && inspectionsList.length > 0 && defectDataList.length > 0){
+      
+      const wb = XLSX.utils.book_new();
+
+      // Sheet 1: inspectionsList
+      const wsInspections = XLSX.utils.json_to_sheet(inspectionsList);
+      XLSX.utils.book_append_sheet(wb, wsInspections, "InspectionList");
+
+      // Sheet 2: defectDataList
+      const wsDefects = XLSX.utils.json_to_sheet(defectDataList);
+      XLSX.utils.book_append_sheet(wb, wsDefects, "DefectList");
+
+      // Create a file
+      const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      
+      // Save the file using FileSaver
+      const data = new Blob([excelBuffer], { type: 'application/octet-stream' });
+      saveAs(data, 'inspection_report.xlsx');
+      
+      setSnackbar({ children: `Exporting report `, severity: 'success' });
+
+      dispatch(setInspectionMessageNull());
+     
+    }
+    else if(!inspectionLoading && inspectionMessage == 'export no'){
+      setSnackbar({ children: `No Data found`, severity: 'error' });
+      console.log('called error')
+      dispatch(setInspectionMessageNull());
+    }
+    setIsLoading(false);
+},[dispatch,inspectionLoading,inspectionMessage,inspectionsList,defectDataList]);
+
+ 
 
   useEffect(()=>{
     if(suppliers?.length > 0 && buyers?.length > 0 && materials?.length > 0){
      setInputSupplier(suppliers);
      setInputMaterial(materials);
      setInputBuyer(buyers);
+
+     setInputSupplierReport(suppliers);
+     setInputMaterialReport(materials);
+     setInputBuyerReport(buyers);
     }
 },[materials,buyers,suppliers]);
 
@@ -142,6 +205,31 @@ const InspectionTable = () => {
               [name]: e.target.value 
           });
     }
+
+    const handleOnChangeInputReport = (name,e,val=null) =>{
+      if(name === "dateStart" || name === "dateEnd"){
+          setInputReport({
+          ...inputReport,
+          [name]: e
+          });
+      }else if(name === "material" || name === "buyer" || name === "supplier"){
+        setInputReport({
+              ...inputReport,
+              [name]: val 
+          });
+      }else if(name === "unfinished"){
+        setInputReport({
+                ...inputReport,
+                [name]: e.target.checked
+            });
+      }
+      else
+      setInputReport({
+              ...inputReport,
+              [name]: e.target.value 
+          });
+    }
+
     const onSearch = () =>{
 
       setRows([]);
@@ -183,6 +271,18 @@ const InspectionTable = () => {
         unfinished:false,
       });
     }
+
+    const onClearReport = () =>{
+      setInputReport({
+       itemCode:'',
+       supplier:null,
+       material:null,
+       buyer:null,
+       dateStart:null,
+       dateEnd:null,
+       unfinished:false,
+     });
+   }
 
   useEffect(() => {
     const hideWatermark = () => {
@@ -324,13 +424,34 @@ const InspectionTable = () => {
   }
   // USER
 
+  const [openReportModal, setOpenReportModal] = useState(false);
+  const handleOpenReportModal = () => {
+      setOpenReportModal(true);
+  };
+  const handleCloseReportModal = () => {
+      setOpenReportModal(false);
+  };
+
+  const onExportReportList = () =>{
+
+      dispatch(getExportReportList({
+        itemcode: inputReport?.itemCode || '',
+        datestart: inputReport?.dateStart || '',
+        dateend: inputReport?.dateEnd || '',
+        buyer: inputReport?.buyer?._id || '',
+        supplier: inputReport?.supplier?._id || '',
+        material: inputReport?.material?._id || ''}));
+
+        setIsLoading(true);
+  }
+
   return (
     <Paper elevation={20} sx={{ padding: 1 }}>
       <Grid container spacing={2} justifyContent="center">
         <Grid xs={12} md={12} lg={12}>
         {/* INPUTS START */}
         <Box mt={2}>
-            <Backdrop sx={{ color: '#fff', zIndex: (theme) => theme.zIndex.drawer + 1 }} open={supplierLoading || buyerLoading || materialLoading || inspectionLoading } >
+            <Backdrop sx={{ color: '#fff', zIndex: (theme) => theme.zIndex.drawer + 1 }} open={supplierLoading || buyerLoading || materialLoading || inspectionLoading || isLoading} >
                 <CircularProgress color="inherit" />
             </Backdrop>
                   <Grid container spacing={2} justifyContent="center" sx={{mb:1}}>  
@@ -353,18 +474,10 @@ const InspectionTable = () => {
                               </Box>
 
                               <Box>
-                                <Button
-                                  variant="contained"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    alert('cute');
-                                   }}
-                                  color="success"
-                                  size="medium"
-                                  startIcon={<Assessment />}
-                                >
-                                  Export Report
-                                </Button>
+                                <Box>
+                                  <Button variant="contained" onClick={(e) => {e.stopPropagation();handleOpenReportModal();}} color="success" size="medium" startIcon={<Assessment />}>Export Report</Button>
+                                  <Button variant="contained" sx={{ml:5}} onClick={()=>{navigate(`/pass-details?id=`)}} color="secondary" size="medium" startIcon={<Save/>}   >Add Inspection </Button>
+                                </Box>
                               </Box>
                             </Box>
                             </AccordionSummary>
@@ -463,7 +576,7 @@ const InspectionTable = () => {
                                 />
                               </Grid>
                               <Grid xs={6} md={8} lg={8}>
-                              <Button variant="contained" onClick={()=>{navigate(`/pass-details?id=`)}} color="primary" size="medium" startIcon={<Save/>}   >Add Inspection </Button>
+                              
                               
                               </Grid>
                             </Grid>  
@@ -613,6 +726,102 @@ const InspectionTable = () => {
           </Grid>
         </Grid>
       </Grid>
+        {/* dialog box */}
+        <Dialog open={openReportModal} onClose={handleCloseReportModal}
+          TransitionComponent={Transition}
+          PaperProps={{
+          style: {
+              margin: 0,
+              width: '100%',
+              height: '90%',
+              maxHeight: '90%',
+              borderRadius: 0,
+              },
+          }}
+          maxWidth="lg">
+            <DialogTitle sx={{ m: 0, p: 2 }} id="customized-dialog-title">
+                Export Report
+            </DialogTitle>
+            <IconButton
+              aria-label="close"
+              onClick={handleCloseReportModal}
+              sx={(theme) => ({
+                position: 'absolute',
+                right: 8,
+                top: 8,
+                color: theme.palette.grey[500],
+              })}
+            >
+              <Close />
+            </IconButton>
+          <DialogContent>
+          
+          <Grid container spacing={2} direction="row" justifyContent="center">
+                <Grid xs={6} md={6} lg={6}>
+                    <Box component="form" noValidate autoComplete="off"  sx={{
+                    '& .MuiTextField-root': { m: 1, width: '40ch' },
+                }}>
+                          <DatePicker label="Inspection Start" size='small' maxDate={moment().add(3,'y')} minDate={moment('2000','YYYY')} onChange={(e)=>handleOnChangeInputReport("dateStart",e)} value={inputReport?.dateStart}/>
+                          <DatePicker label="Inspection End" size='small' maxDate={moment().add(3,'y')} minDate={moment('2000','YYYY')} onChange={(e)=>handleOnChangeInputReport("dateEnd",e)} value={inputReport?.dateEnd}/>
+                          <TextField  value={inputReport?.itemCode} onChange={(e)=>handleOnChangeInputReport("itemCode",e)} fullWidth label="ItemCode" size='small' variant="outlined" />
+                            <Autocomplete
+                                  disablePortal
+                                  options={inputSupplierReport}
+                                  clearOnEscape
+                                  onChange={(e,v)=>handleOnChangeInputReport("supplier",e,v)}
+                                  getOptionLabel={(option) => option.name}
+                                  value={inputReport?.supplier}
+                                  size='small'
+                                  isOptionEqualToValue={(option, value) => option.value === value.value}
+                                  sx={{ width: 250 }}
+                                  renderInput={(params) => <TextField {...params} label="Supplier" />}
+                                  />
+                            <Autocomplete
+                                  disablePortal
+                                  id="combo-box-demo"
+                                  options={inputBuyerReport}
+                                  clearOnEscape
+                                  onChange={(e,v)=>handleOnChangeInputReport("buyer",e,v)}
+                                  getOptionLabel={(option) => option.name}
+                                  value={inputReport?.buyer}
+                                  size='small'
+                                  isOptionEqualToValue={(option, value) => option.value === value.value}
+                                  sx={{ width: 250 }}
+                                  renderInput={(params) => <TextField {...params} label="Buyer" />}
+                                  />
+
+                              <Autocomplete
+                                  disablePortal
+                                  id="combo-box-demo"
+                                  options={inputMaterialReport}
+                                  clearOnEscape
+                                  onChange={(e,v)=>handleOnChangeInputReport("material",e,v)}
+                                  getOptionLabel={(option) => option.name}
+                                  value={inputReport?.material}
+                                  size='small'
+                                  isOptionEqualToValue={(option, value) => option.value === value.value}
+                                  sx={{ width: 250 }}
+                                  renderInput={(params) => <TextField {...params} label="Material" />}
+                                  />
+                                  
+                                <Grid container spacing={1} justifyContent="flex-start" alignItems="flex-start " direction="row">
+                              <Grid xs={6} md={4} lg={4}>
+                                <Button variant="contained" color="primary" onClick={onClearReport} size="medium" fullWidth startIcon={<Save/>}> Clear</Button>
+                              </Grid>
+                              <Grid xs={6} md={4} lg={4}>
+                                <Button variant="outlined" color="primary" onClick={onExportReportList} size="medium" fullWidth startIcon={<Assessment/>}> Export Report </Button>
+                              </Grid>
+                            </Grid>
+                    </Box>
+                </Grid>
+                <Grid xs={6} md={6} lg={6}>
+                   
+                      
+                    
+                </Grid>
+            </Grid>
+          </DialogContent>
+        </Dialog>
       <div>
           {!!snackbar && (
               <Snackbar

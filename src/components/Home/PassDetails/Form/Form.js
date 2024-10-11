@@ -254,7 +254,8 @@ const Form = ({setSharedStateRef,sharedStateRef}) =>{
             setSnackbar({ children: `Total Time(min) inputed is invalid, `, severity: 'error' });
             flag = false;
         }
-        if(parseInt(input.weight) < 0 || parseInt(input.weight) > 999999 || input.weight == ''){
+        const weightStr = /^\d+(\.\d{1,4})?(-\d+(\.\d{1,4})?)?$/;
+        if(!weightStr.test(input.weight)){
             setSnackbar({ children: `Weight inputed is invalid, `, severity: 'error' });
             flag = false;
         }
@@ -474,7 +475,7 @@ const Form = ({setSharedStateRef,sharedStateRef}) =>{
                                   <TextField size='small' value={input.itemDescription} disabled  multiline rows={2} fullWidth label="Item Description" variant="outlined" />
 
                                   
-                                  <TextField size='small'value={input.weight} type='number' onChange={(e)=>handleOnChangeInput("weight",e)} fullWidth label="Weight" variant="outlined" />
+                                  <TextField size='small'value={input.weight} onChange={(e)=>handleOnChangeInput("weight",e)} fullWidth label="Weight" variant="outlined" />
                             </Box>
                         </Grid>
                         <Grid xs={6} md={6} lg={6}>

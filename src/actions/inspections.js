@@ -1,5 +1,5 @@
 import * as api from '../api';
-import {CREATE_INSPECTION,START_LOADING_HOME,EDIT_INSPECTION,END_LOADING_HOME,SET_MESSAGE_NULL,GET_INSPECTION_BY_ID,GET_INSPECTIONS_BY_SEARCH, GET_INSPECTIONS} from '../constant/actionTypes';
+import {CREATE_INSPECTION,START_LOADING_HOME,EDIT_INSPECTION,END_LOADING_HOME,SET_MESSAGE_NULL,GET_INSPECTION_BY_ID,GET_INSPECTIONS_BY_SEARCH, GET_INSPECTIONS, GET_EXPORT_REPORT_LIST} from '../constant/actionTypes';
 
 
 export const getInspections = (page) => async (dispatch) =>{
@@ -38,6 +38,22 @@ export const createInspection = (newInspection) => async (dispatch) =>{
         console.log(error);
     }
 }
+
+export const getExportReportList = (report) => async (dispatch) =>{
+    try{
+        dispatch({type: START_LOADING_HOME});
+        const { data } = await api.getExportReportList(report);
+
+        dispatch({type: GET_EXPORT_REPORT_LIST, payload: data});
+
+        dispatch({type: END_LOADING_HOME});
+
+    }catch(error){
+        console.log(error);
+    }
+}
+
+
 
 export const editInspection = (id,editedInspection) => async (dispatch) =>{
     try{
