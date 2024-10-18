@@ -47,6 +47,7 @@ const InspectionTable = () => {
   const query = useQuery();
   const queryPage = query.get('page') || 1;
   const itemCode = query.get('itemcode') || '';
+  const color = query.get('color') || '';
   const dateStart = query.get('datestart') || '';
   const dateEnd = query.get('dateend') || '';
   const supplier = query.get('supplier') || '';
@@ -66,6 +67,7 @@ const InspectionTable = () => {
     itemCode: null,
     supplier:null,
     material:null,
+    color:null,
     buyer:null,
     dateStart:null,
     dateEnd:null,
@@ -75,6 +77,7 @@ const InspectionTable = () => {
   const[inputReport,setInputReport] = useState({
     itemCode: null,
     supplier:null,
+    color:null,
     material:null,
     buyer:null,
     dateStart:null,
@@ -97,7 +100,7 @@ const InspectionTable = () => {
   const handleCloseSnackbar = () => setSnackbar(null);
 
   const handleChangePage = (newPage) =>{
-    if(itemCode == '' && dateStart == '' && dateEnd == '' && supplier == '' && buyer == ''
+    if(itemCode == '' && color == ''&& dateStart == '' && dateEnd == '' && supplier == '' && buyer == ''
         && supplier == '' && material == '' && unfinished == ''){
           console.log(`handleChangePage true`);
       navigate(`/inspection-list?page=${newPage}`);
@@ -110,6 +113,7 @@ const InspectionTable = () => {
 
       dispatch(getInspectionsBySearch({
         itemcode: itemCode != '' ? itemCode : '',
+        itemcode: color != '' ? color : '',
         datestart: dateStart != '' ? moment(dateStart, 'MM-DD-YYYY') : '',
         dateend: dateEnd != '' ? moment(dateEnd, 'MM-DD-YYYY') : '',
         buyer: buyer != '' ? inputBuyer.find(buy => buyer == buy?.name)._id : '',
@@ -118,7 +122,7 @@ const InspectionTable = () => {
         unfinished: unfinished != '' ? unfinished : '',
         page:newPage}));
 
-        navigate(`/inspection-list/search?itemcode=${itemCode || ''}&datestart=${dateStart && dateStart !== '' ? moment(dateStart).format('MM-DD-YYYY') : ''}&dateend=${dateEnd && dateEnd !== '' ? moment(dateEnd).format('MM-DD-YYYY') : ''}&supplier=${supplier || ''}&buyer=${buyer || ''}&material=${material || ''}&unfinished=${unfinished || ''}&page=${newPage}`);
+        navigate(`/inspection-list/search?itemcode=${itemCode || ''}&color=${color || ''}&datestart=${dateStart && dateStart !== '' ? moment(dateStart).format('MM-DD-YYYY') : ''}&dateend=${dateEnd && dateEnd !== '' ? moment(dateEnd).format('MM-DD-YYYY') : ''}&supplier=${supplier || ''}&buyer=${buyer || ''}&material=${material || ''}&unfinished=${unfinished || ''}&page=${newPage}`);
     }
   }
 
@@ -158,7 +162,7 @@ const InspectionTable = () => {
      
     }
     else if(!inspectionLoading && inspectionMessage == 'export no'){
-      setSnackbar({ children: `No Data found`, severity: 'error' });
+      setSnackbar({ children: `No Data found, Defect Datas is empty`, severity: 'error' });
       console.log('called error')
       dispatch(setInspectionMessageNull());
     }
@@ -235,6 +239,7 @@ const InspectionTable = () => {
       setRows([]);
         
       if((input?.itemCode == null || input?.itemCode == '') && 
+          (input?.color == null || input?.color == '') && 
           (input?.dateStart == null || input?.dateStart == '') && 
           (input?.dateEnd == null || input?.dateEnd == '') && 
           (input?.supplier?._id == null ||  input?.supplier?._id == '') &&
@@ -248,6 +253,7 @@ const InspectionTable = () => {
           
           dispatch(getInspectionsBySearch({
               itemcode: input?.itemCode || '',
+              color: input?.color || '',
               datestart: input?.dateStart || '',
               dateend: input?.dateEnd || '',
               buyer: input?.buyer?._id || '',
@@ -256,13 +262,14 @@ const InspectionTable = () => {
               unfinished: input?.unfinished || '',
               page:1}));
           
-            console.log(`/inspection-list/search?itemcode=${input?.itemCode || ''}&datestart=${input?.dateStart && input?.dateStart !== '' ? moment(input?.dateStart).format('MM-DD-YYYY') : ''}&dateend=${input?.dateEnd && input?.dateEnd !== '' ? moment(input?.dateEnd).format('MM-DD-YYYY') : ''}&supplier=${input?.supplier?.name  || ''}&buyer=${input?.buyer?.name  || ''}&material=${input?.material?.name || ''}&unfinished=${input?.unfinished || ''}&page=1`);
-          navigate(`/inspection-list/search?itemcode=${input?.itemCode || ''}&datestart=${input?.dateStart && input?.dateStart !== '' ? moment(input?.dateStart).format('MM-DD-YYYY') : ''}&dateend=${input?.dateEnd && input?.dateEnd !== '' ? moment(input?.dateEnd).format('MM-DD-YYYY') : ''}&supplier=${input?.supplier?.name  || ''}&buyer=${input?.buyer?.name  || ''}&material=${input?.material?.name || ''}&unfinished=${input?.unfinished || ''}&page=1`);
+            console.log(`/inspection-list/search?itemcode=${input?.itemCode || ''}&color=${input?.color || ''}&datestart=${input?.dateStart && input?.dateStart !== '' ? moment(input?.dateStart).format('MM-DD-YYYY') : ''}&dateend=${input?.dateEnd && input?.dateEnd !== '' ? moment(input?.dateEnd).format('MM-DD-YYYY') : ''}&supplier=${input?.supplier?.name  || ''}&buyer=${input?.buyer?.name  || ''}&material=${input?.material?.name || ''}&unfinished=${input?.unfinished || ''}&page=1`);
+          navigate(`/inspection-list/search?itemcode=${input?.itemCode || ''}&color=${input?.color || ''}&datestart=${input?.dateStart && input?.dateStart !== '' ? moment(input?.dateStart).format('MM-DD-YYYY') : ''}&dateend=${input?.dateEnd && input?.dateEnd !== '' ? moment(input?.dateEnd).format('MM-DD-YYYY') : ''}&supplier=${input?.supplier?.name  || ''}&buyer=${input?.buyer?.name  || ''}&material=${input?.material?.name || ''}&unfinished=${input?.unfinished || ''}&page=1`);
       }
     }
     const onClear = () =>{
        setInput({
         itemCode:'',
+        color:'',
         supplier:null,
         material:null,
         buyer:null,
@@ -275,6 +282,7 @@ const InspectionTable = () => {
     const onClearReport = () =>{
       setInputReport({
        itemCode:'',
+       color:'',
        supplier:null,
        material:null,
        buyer:null,
@@ -306,9 +314,9 @@ const InspectionTable = () => {
 
       inspections?.map(i => {
         rowsData.push(
-          createData(i?._id,moment(i?.date).format('MM-DD-YYYY'),i?.supplier?.name, i?.item?.itemCode, i?.item?.itemDescription,
+          createData(i?._id,moment(i?.date).format('MM-DD-YYYY'),i?.supplier?.name, i?.item?.itemCode, i?.item?.itemDescription,i?.item?.color,
             i?.buyer?.name, i?.material?.name,i?.weight,i?.deliveryQty,i?.firstPass?.defectQty, i?.firstPass?.totalGoodQty,i?.firstPass?.totalPullOutQty,
-            i?.secondPass?.totalGoodQty,i?.secondPass?.totalPullOutQty, i?.totalGoodQty, i?.totalPullOutQty, i?.unfinished));
+            i?.secondPass?.totalGoodQty,i?.secondPass?.totalPullOutQty, i?.totalGoodQty, i?.totalPullOutQty, i?.unfinished,i?.emptyDefect));
         return null;
       });
       setRows([...rowsData]);
@@ -316,8 +324,8 @@ const InspectionTable = () => {
 
   }, [inspectionLoading,inspections]);
 
-  function createData(id, inspectiondate, supplier, itemcode, itemdescription, buyer, material, weight, deliveryqty, firstpassmajor, firstpassgood, firstpasspullout, secondpassgood, secondpasspullout, totalgood, totalpullout, unfinished) {
-    return { id, inspectiondate, supplier, itemcode, itemdescription, buyer, material, weight, deliveryqty, firstpassmajor, firstpassgood, firstpasspullout, secondpassgood, secondpasspullout, totalgood, totalpullout, unfinished };
+  function createData(id, inspectiondate, supplier, itemcode, itemdescription,color, buyer, material, weight, deliveryqty, firstpassmajor, firstpassgood, firstpasspullout, secondpassgood, secondpasspullout, totalgood, totalpullout, unfinished,emptyDefect) {
+    return { id, inspectiondate, supplier, itemcode, itemdescription,color, buyer, material, weight, deliveryqty, firstpassmajor, firstpassgood, firstpasspullout, secondpassgood, secondpasspullout, totalgood, totalpullout, unfinished,emptyDefect };
   }
 
   const RenderDate = (row) =>{
@@ -350,6 +358,7 @@ const InspectionTable = () => {
     { field: 'supplier', headerName: 'Supplier', headerClassName: 'pin-header',width:120 },
     { field: 'itemcode', headerName: 'Item Code', headerClassName: 'pin-header',width:120 },
     { field: 'itemdescription', headerName: 'Item Description',  headerClassName: 'pin-header',width:200},
+    { field: 'color', headerName: 'Color Finish',  headerClassName: 'pin-header',width:150},
     { field: 'buyer', headerName: 'Buyer', headerClassName: 'pin-header',width:120},
     { field: 'material', headerName: 'Material', headerClassName: 'pin-header',width:120},
     { field: 'weight', headerName: 'Weight',headerClassName:'pin-header',width:70},
@@ -361,7 +370,8 @@ const InspectionTable = () => {
     { field: 'secondpasspullout', headerName: 'Pull-Out',headerClassName:'defect-header',width:70 },
     { field: 'totalgood', headerName: 'Good', width:70},
     { field: 'totalpullout', headerName: 'Pull-Out',headerClassName:'defect-header',width:70 },
-    { field: 'unfinished', headerName: 'Un finished',headerClassName:'pullout-header', width:70}
+    { field: 'unfinished', headerName: 'Un finished',headerClassName:'pullout-header', width:70},
+    { field: 'emptyDefect', headerName: 'Is Empty Data'}
   ];
 
   const headerGroupCustom = (title) =>{
@@ -436,6 +446,7 @@ const InspectionTable = () => {
 
       dispatch(getExportReportList({
         itemcode: inputReport?.itemCode || '',
+        color: inputReport?.color || '',
         datestart: inputReport?.dateStart || '',
         dateend: inputReport?.dateEnd || '',
         buyer: inputReport?.buyer?._id || '',
@@ -493,7 +504,7 @@ const InspectionTable = () => {
                               '& .MuiTextField-root': { m: 1, width: '30ch' },
                               '& .MuiInputBase-root': {
                                   fontSize: '0.875rem',  // Adjust the font size
-                                  padding: '4px 8px',   // Adjust the padding to reduce the height
+                                  padding: '2px 8px',   // Adjust the padding to reduce the height
                                   height: '40px',       // Set a specific height
                                 },
                           }}
@@ -559,7 +570,7 @@ const InspectionTable = () => {
                                   />
                               </Box>
                           </Grid>
-                          <Grid xs={6} md={3} lg={3}>
+                          <Grid xs={6} md={3} lg={3} sx={{ ml:-10}}>
                           <Box component="form" noValidate autoComplete="off"
                            sx={{
                             '& .MuiTextField-root': { m: 1, width: 'auto' },
@@ -567,7 +578,14 @@ const InspectionTable = () => {
                           }}
                           >
                            <Grid container spacing={1} justifyContent="space-between" alignItems="center" direction="row">
-                              <Grid xs={6} md={4} lg={4}>
+                              <Grid xs={6} md={8} lg={8}>
+                                  <TextField  value={input?.color} onChange={(e)=>handleOnChangeInput("color",e)} fullWidth label="Color Finish" size='small' variant="outlined" />
+                              </Grid>
+                             
+                            </Grid>  
+
+                            <Grid container spacing={1} justifyContent="space-between" alignItems="center" direction="row">
+                              <Grid xs={4} md={4} lg={4}>
                                 <FormControlLabel
                                       label="Unfinished"
                                       control={<Checkbox
@@ -575,17 +593,10 @@ const InspectionTable = () => {
                                       onChange={(e)=>handleOnChangeInput("unfinished",e)} />}
                                 />
                               </Grid>
-                              <Grid xs={6} md={8} lg={8}>
-                              
-                              
-                              </Grid>
-                            </Grid>  
-
-                            <Grid container spacing={1} justifyContent="space-between" alignItems="center" direction="row">
-                              <Grid xs={6} md={4} lg={4}>
+                              <Grid xs={4} md={4} lg={4}>
                               <Button variant="contained" color="primary" onClick={onClear} size="medium" fullWidth startIcon={<Save/>}> Clear</Button>
                               </Grid>
-                              <Grid xs={6} md={8} lg={8}>
+                              <Grid xs={4} md={4} lg={4}>
                               <Button variant="outlined" color="primary" onClick={onSearch} size="medium" fullWidth startIcon={<Save/>}> Search </Button>
                               </Grid>
                             </Grid>
@@ -626,19 +637,30 @@ const InspectionTable = () => {
               columns={columns}
               columnGroupingModel={columnGroupingModel}
               experimentalFeatures={{ columnGrouping: true }}
+
+              columnVisibilityModel={{
+                emptyDefect: false,
+              }}
              
               initialState={{
-                pinnedColumns: { left: ['inspectiondate', 'supplier', 'itemcode', 'itemdescription', 'buyer', 'material','weight','deliveryqty'] }
+                pinnedColumns: { left: ['inspectiondate', 'supplier', 'itemcode', 'itemdescription', 'buyer', 'material'] }
               }}
 
               getRowClassName={(params)=>{
                 if (params.row.unfinished !== 0) {
                   return 'unfinished-zero'; // Apply this class when unfinished is 0
                 }
+
                 return '';
               }}
               
               getCellClassName={(params)=>{
+
+                
+                if (params.field === 'itemcode' && params.row.emptyDefect == true) {
+                  return 'false-itemcode-cell';
+                }
+
                 return  params.field === "firstpassmajor"
                 || params.field === "firstpassgood" 
                 || params.field === "firstpasspullout"
@@ -646,6 +668,7 @@ const InspectionTable = () => {
                 || params.field === "totalpullout"
                 ? "highlight" : ""
               }}
+
               sx={{
                 '& .MuiDataGrid-row.unfinished-zero': {
                   backgroundColor: '#ffcccc', 
@@ -682,6 +705,10 @@ const InspectionTable = () => {
                   "&:hover": {
                     bgcolor: "#b2bec3",
                   },
+                },
+                '.false-itemcode-cell': {
+                  backgroundColor: '#2d3436', // Set the background color for itemcode column when value is false
+                  color: '#fff', // You can also change the text color if needed
                 },
                 overflow: "scroll",
                 '& .Mui-selected': {
@@ -764,6 +791,7 @@ const InspectionTable = () => {
                           <DatePicker label="Inspection Start" size='small' maxDate={moment().add(3,'y')} minDate={moment('2000','YYYY')} onChange={(e)=>handleOnChangeInputReport("dateStart",e)} value={inputReport?.dateStart}/>
                           <DatePicker label="Inspection End" size='small' maxDate={moment().add(3,'y')} minDate={moment('2000','YYYY')} onChange={(e)=>handleOnChangeInputReport("dateEnd",e)} value={inputReport?.dateEnd}/>
                           <TextField  value={inputReport?.itemCode} onChange={(e)=>handleOnChangeInputReport("itemCode",e)} fullWidth label="ItemCode" size='small' variant="outlined" />
+                          <TextField  value={inputReport?.color} onChange={(e)=>handleOnChangeInputReport("color",e)} fullWidth label="Color" size='small' variant="outlined" />
                             <Autocomplete
                                   disablePortal
                                   options={inputSupplierReport}

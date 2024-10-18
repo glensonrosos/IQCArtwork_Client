@@ -20,10 +20,11 @@ import {getMaterials} from '../../../../actions/materials';
 import {getSuppliers} from '../../../../actions/suppliers';
 import {findItems,setItemMessageNull} from '../../../../actions/items';
 import {createInspection,setInspectionMessageNull,getInspectionById,editInspection} from '../../../../actions/inspections';
+import {checkEmptyDefect} from '../../../../actions/defectDatas';
 
 
 
-import { DatePicker } from '@mui/x-date-pickers';
+import { DatePicker, TimePicker } from '@mui/x-date-pickers';
 import moment from 'moment';
 
 import { useSelector,useDispatch } from 'react-redux';
@@ -69,9 +70,13 @@ const Form = ({setSharedStateRef,sharedStateRef}) =>{
         itemCode:'',
         itemDescription:'',
         deliveryQty:'',
-        totalMinWork:'',
+        totalMinWork:{
+            start:null,
+            end:null
+        },
         weight:'',
         remarks:'',
+        emptyDefect:null,
         totalGoodQty:0,
         totalPullOutQty:0,
         firstPass:{
@@ -83,7 +88,8 @@ const Form = ({setSharedStateRef,sharedStateRef}) =>{
             totalGoodQty:0,
             totalPullOutQty:0
         },
-        unfinished:0
+        unfinished:0,
+        dateClosure:null,
     });
 
     const [inputSupplier,setInputSupplier] = useState([]);
@@ -93,6 +99,7 @@ const Form = ({setSharedStateRef,sharedStateRef}) =>{
     const [prevInputState, setPrevInputState] = useState([]);
    
     useEffect(()=>{
+
         setInput({
             ...input,
             totalGoodQty: Number(input.firstPass.totalGoodQty) + Number(input.secondPass.totalGoodQty),
@@ -100,12 +107,12 @@ const Form = ({setSharedStateRef,sharedStateRef}) =>{
             unfinished: Number(input.deliveryQty) - ((Number(input.firstPass.totalGoodQty) + Number(input.secondPass.totalGoodQty))
                 + (Number(input.firstPass.totalPullOutQty) + Number(input.secondPass.totalPullOutQty)))
         })
+        
     },[input.firstPass,input.secondPass,input.deliveryQty]);
 
    useEffect(()=>{
         if(buttonQueryId !== 0){
-            console.log(`called dispatch ${buttonQueryId}`);
-            dispatch(getInspectionById(buttonQueryId));
+            dispatch(getInspectionById(buttonQueryId || ''));
         }
         dispatch(getSuppliers());
         dispatch(getBuyers());
@@ -118,24 +125,54 @@ const Form = ({setSharedStateRef,sharedStateRef}) =>{
                 setSnackbar({ children: `Duplicate entry cannot update`, severity: 'error' });
                 setInput(prevInputState);
             }
-            else if(inspectionMessage === 'edit good')
+            else if(inspectionMessage === 'edit good'){
+               
+                setSharedStateRef.setPassType({
+                    ...sharedStateRef.passType,name:'firstPassDefect',
+                    firstDefect: input?.firstPass?.defectQty,
+                    firstPullOut: input?.firstPass?.totalPullOutQty,
+                    secondPullOut: input?.secondPass?.totalPullOutQty
+                });
+
                 setSnackbar({ children: `Successfully updated`, severity: 'success' });
+            }
             else if(inspectionMessage === 'no found')
                 navigate(`/inspection-list`);   // redirect if no inspection id found via link search
         }
     },[inspectionLoading,inspectionMessage]);
+
+    useEffect(()=>{
+        if(prevInputState.buyer !== null ){
+            setSharedStateRef.setPassType({
+                ...sharedStateRef.passType,name:'firstPassDefect',
+                firstDefect: input?.firstPass?.defectQty,
+                firstPullOut: input?.firstPass?.totalPullOutQty,
+                secondPullOut: input?.secondPass?.totalPullOutQty
+            });
+        }
+    },[prevInputState]);
 
    useEffect(()=>{
         if(suppliers?.length > 0 && buyers?.length > 0 && materials?.length > 0){
          setInputSupplier(suppliers);
          setInputMaterial(materials);
          setInputBuyer(buyers);
+         
+         if(buttonQueryId === ''){
+            setInput({
+                ...input,
+                totalMinWork:{
+                    start:moment().set({ hour: 6, minute: 0 }),
+                    end:moment().set({ hour: 8, minute: 0 })
+                },
+            })
+         }
         }
     },[materials,buyers,suppliers]);
 
     useEffect(() =>{
         if(inspectionMessage === 'found' && !inspectionLoading && inspections !== null && !buyerLoading && inputBuyer) {
-            console.log('called input');
+            
             const initialInput = {
                 supplier:inspections.supplier, //
                 material:inspections.material,//
@@ -145,7 +182,10 @@ const Form = ({setSharedStateRef,sharedStateRef}) =>{
                 itemCode:inspections.item.itemCode, //
                 itemDescription:inspections.item.itemDescription, //
                 deliveryQty:inspections.deliveryQty,
-                totalMinWork:inspections.totalMinWork,
+                totalMinWork:{
+                    start: moment(inspections.totalMinWork.start),
+                    end:moment(inspections.totalMinWork.end)
+                },
                 weight:inspections.weight,
                 remarks:inspections.remarks,
                 totalGoodQty:inspections.totalGoodQty,
@@ -158,7 +198,8 @@ const Form = ({setSharedStateRef,sharedStateRef}) =>{
                 secondPass:{
                     totalGoodQty:inspections.secondPass.totalGoodQty,
                     totalPullOutQty:inspections.secondPass.totalPullOutQty
-                }
+                },
+                dateClosure: moment(inspections.dateClosure),
             }
             setInput(initialInput);
             setPrevInputState(initialInput);
@@ -168,7 +209,6 @@ const Form = ({setSharedStateRef,sharedStateRef}) =>{
                 setSnackbar({ children: `Duplicate Entry (Date and Item Code) `, severity: 'error' });
             }else if(inspectionMessage === 'good'){
                 setSnackbar({ children: `Successfully Added`, severity: 'success' });
-
                 navigate(`/pass-details?id=${inspections[0]?._id}`);
                 setbuttonQueryId(inspections[0]?._id);
             }
@@ -189,6 +229,24 @@ const Form = ({setSharedStateRef,sharedStateRef}) =>{
                 [keys[1]]: e.target.value
             }
         }));
+    }
+    else if(name === "timeStart") {
+        setInput({
+        ...input,
+        totalMinWork:{
+            ...input.totalMinWork,
+            start: e
+        }
+        });
+    }
+    else if(name === "timeEnd") {
+        setInput({
+        ...input,
+        totalMinWork:{
+            ...input.totalMinWork,
+            end: e
+        }
+        });
     }
     else if(name === "date"){
         setInput({
@@ -250,10 +308,16 @@ const Form = ({setSharedStateRef,sharedStateRef}) =>{
             setSnackbar({ children: `Total Good and Pull-Out Qty must not greater than Delivered Qty`, severity: 'error' });
             flag = false;
         }
-        if(parseInt(input.totalMinWork) < 0 || parseInt(input.totalMinWork) > 999999 || input.totalMinWork == ''){
-            setSnackbar({ children: `Total Time(min) inputed is invalid, `, severity: 'error' });
-            flag = false;
+
+        if((parseInt(input.firstPass.defectQty) < 0 || parseInt(input.firstPass.totalGoodQty) < 0 || parseInt(input.firstPass.totalPullOutQty) < 0
+            || parseInt(input.secondPass.totalGoodQty) < 0 || parseInt(input.secondPass.totalPullOutQty) < 0)){
+                setSnackbar({ children: `Defects Qty must not be lesser to 0`, severity: 'error' });
+                flag = false;
         }
+        // if(parseInt(input.totalMinWork) < 0 || parseInt(input.totalMinWork) > 999999 || input.totalMinWork == ''){
+        //     setSnackbar({ children: `Total Time(min) inputed is invalid, `, severity: 'error' });
+        //     flag = false;
+        // }
         const weightStr = /^\d+(\.\d{1,4})?(-\d+(\.\d{1,4})?)?$/;
         if(!weightStr.test(input.weight)){
             setSnackbar({ children: `Weight inputed is invalid, `, severity: 'error' });
@@ -263,16 +327,40 @@ const Form = ({setSharedStateRef,sharedStateRef}) =>{
             setSnackbar({ children: `Total Good and Pull-Out Qty must not greater than Delivered Qty`, severity: 'error' });
             flag = false;
         }
+        if(moment(input.totalMinWork.start).format('hh:mm A') == `Invalid date`){
+            setSnackbar({ children: `Start Time is invalid`, severity: 'error' });
+            flag = false;
+        }
+        if(moment(input.totalMinWork.end).format('hh:mm A') == `Invalid date`){
+            setSnackbar({ children: `End Time is invalid`, severity: 'error' });
+            flag = false;
+        }
+
+        if (moment(input.totalMinWork.start).isAfter(moment(input.totalMinWork.end))) {
+            setSnackbar({ children: 'Time start must not be beyond end time', severity: 'error' });
+            flag = false;
+        }
+
+        let closure = null;
+        if(parseInt(input.unfinished) == 0){
+            closure = moment();
+            setInput({...input, dateClosure:moment()});
+        }else
+            setInput({...input, dateClosure:null});
+
         const newUser = `${user?.result?.firstname} ${user?.result?.lastname}`;
         if(flag && buttonQueryId === ''){
-           
-            dispatch(createInspection({...input,editedBy:newUser}));
+            await dispatch(createInspection({...input,editedBy:newUser,dateClosure: closure}));
         }
         else if(flag && buttonQueryId !== ''){
-            dispatch(editInspection(queryId,{...input,editedBy:newUser}));
-            console.log(` update inspection ${JSON.stringify(input)}`)
-            //alert('update inspection');
+            await dispatch(editInspection(queryId,{...input,editedBy:newUser,dateClosure: closure}));
         }
+
+         // update checkEmptyDefect
+        
+         if(queryId !== '')
+            await dispatch(checkEmptyDefect({ inspectionId:queryId}));
+
     };
 
     // USER
@@ -380,6 +468,11 @@ const Form = ({setSharedStateRef,sharedStateRef}) =>{
           label: 'Item Description',
           dataKey: 'itemDescription',
         },
+        {
+            width: 200,
+            label: 'Color Finish',
+            dataKey: 'color',
+          },
       ];
 
       const onFindItems = () =>{
@@ -395,8 +488,8 @@ const Form = ({setSharedStateRef,sharedStateRef}) =>{
         }
     };
 
-    function createData(id,rowid,itemCode,itemDescription) {
-        return { id,rowid,itemCode,itemDescription };
+    function createData(id,rowid,itemCode,itemDescription,color) {
+        return { id,rowid,itemCode,itemDescription,color };
     }
 
     const rowsData = [];
@@ -406,7 +499,7 @@ const Form = ({setSharedStateRef,sharedStateRef}) =>{
           setRows([]);
           let rowNum = 1;
 
-          console.log(`item => ${JSON.stringify(items)}`)
+        
 
           items?.map(itm => {
               rowsData.push(createData(itm._id,rowNum++,<Typography onClick={()=>{
@@ -415,10 +508,11 @@ const Form = ({setSharedStateRef,sharedStateRef}) =>{
                     item: itm,
                     itemCode: itm.itemCode,
                     itemDescription: itm.itemDescription,
+                    color:itm.color,
                 })
                 handleCloseItemModal();
                 setSnackbar({ children: `Successfully Item updated`, severity: 'success' });
-              }} sx={{textDecoration: 'underline', cursor: 'pointer',color:'#E74C3C',fontSize:20}}>{itm.itemCode}</Typography>,itm.itemDescription));
+              }} sx={{textDecoration: 'underline', cursor: 'pointer',color:'#E74C3C',fontSize:20}}>{itm.itemCode}</Typography>,itm.itemDescription,itm.color));
               return null;
           });
           setRows([...rowsData]);
@@ -512,7 +606,14 @@ const Form = ({setSharedStateRef,sharedStateRef}) =>{
                               
                              
                              <TextField size='small' type='number' value={input.deliveryQty} onChange={(e)=>handleOnChangeInput("deliveryQty",e)} fullWidth label="Delivery Qty" variant="outlined" />
-                             <TextField size='small' type='number' value={input.totalMinWork} onChange={(e)=>handleOnChangeInput("totalMinWork",e)} fullWidth label="Total Time(min)" variant="outlined" />
+                             {/* <TextField size='small' type='number' value={input.totalMinWork} onChange={(e)=>handleOnChangeInput("totalMinWork",e)} fullWidth label="Total Time(min)" variant="outlined" /> */}
+                            <Box display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                <TimePicker
+                                    label="Start Time" size='small' value={input.totalMinWork.start} onChange={(e)=>handleOnChangeInput("timeStart",e)}/>
+                                <TimePicker
+                                    label="End Time" size='small' value={input.totalMinWork.end} onChange={(e)=>handleOnChangeInput("timeEnd",e)}/>
+                            </Box>
+                             
                              <TextField size='small' value={input.remarks} onChange={(e)=>handleOnChangeInput("remarks",e)}  multiline rows={2} fullWidth label="Remarks" variant="outlined" />
                             </Box>
                            
@@ -564,7 +665,9 @@ const Form = ({setSharedStateRef,sharedStateRef}) =>{
                                     <Grid container spacing={2} direction="row">
                                         <Grid xs={12} md={12} lg={12} >
                                             <TextField size='small' type='number' value={input?.firstPass?.defectQty} onChange={(e)=>handleOnChangeInput("firstPass.defectQty",e)} fullWidth label="Defect Qty" variant="outlined" />
-                                            <Button size='small' variant="contained" sx={{mt:1.5}} color='primary' startIcon={<Save/>} onClick={()=>{setSharedStateRef.setPassType('firstPassDefect')}}>Breakdown</Button>
+                                            <Button size='small' variant="contained" sx={{mt:1.5}} color='primary' startIcon={<Save/>} onClick={()=>{setSharedStateRef.setPassType({...sharedStateRef.passType,name:'firstPassDefect', firstDefect:inspections?.firstPass?.defectQty,
+                firstPullOut:input?.firstPass?.totalPullOutQty,
+                secondPullOut:input?.secondPass?.totalPullOutQty,})}}>Breakdown</Button>
                                         </Grid>
                                     </Grid>
                                     
@@ -573,7 +676,9 @@ const Form = ({setSharedStateRef,sharedStateRef}) =>{
                                     <Grid container spacing={2} direction="row">
                                         <Grid xs={12} md={12} lg={12} >
                                             <TextField size='small' type='number' value={input?.firstPass?.totalPullOutQty} onChange={(e)=>handleOnChangeInput("firstPass.totalPullOutQty",e)} fullWidth label="Total Pull-out" variant="outlined" />
-                                            <Button size='small' variant="contained" sx={{mt:1.5}} color='primary' startIcon={<Save/>} onClick={()=>{setSharedStateRef.setPassType('firstPassPullOut')}}>Breakdown</Button>
+                                            <Button size='small' variant="contained" sx={{mt:1.5}} color='primary' startIcon={<Save/>} onClick={()=>{setSharedStateRef.setPassType({...sharedStateRef.passType,name:'firstPassPullOut', firstDefect:inspections?.firstPass?.defectQty,
+                firstPullOut:input?.firstPass?.totalPullOutQty,
+                secondPullOut:input?.secondPass?.totalPullOutQty,})}}>Breakdown</Button>
                                         </Grid>
                                     </Grid>
                                     </Box>
@@ -582,7 +687,7 @@ const Form = ({setSharedStateRef,sharedStateRef}) =>{
                         
 
 
-                            </AccordionDetails>
+                    </AccordionDetails>
                         </Accordion>
                         <Accordion >
                             <AccordionSummary
@@ -594,7 +699,10 @@ const Form = ({setSharedStateRef,sharedStateRef}) =>{
                                 color:"#fff"
                             }}
                             >
-                            Pull-out (2nd Pass)
+                            <Box display="flex" justifyContent="space-between" alignItems="center" width="100%">
+                                <Typography>Pull-out (2nd Pass)</Typography>
+                                <Typography sx={{backgroundColor:"#000",pl:1,pr:1,mr:3}} >Date Closure: { moment(input.dateClosure).format('MM-DD-YYYY') == 'Invalid date' ? 'NA' : moment(input.dateClosure).format('MM-DD-YYYY')} </Typography>
+                            </Box>
                             </AccordionSummary>
                             <AccordionDetails>
 
@@ -605,12 +713,15 @@ const Form = ({setSharedStateRef,sharedStateRef}) =>{
                                 }}>
                                  
                                     
-                                    <TextField size='small'value={input?.secondPass?.totalGoodQty} onChange={(e)=>handleOnChangeInput("secondPass.totalGoodQty",e)} fullWidth label="Total Good" variant="outlined" />
+                                    <TextField type='number' size='small'value={input?.secondPass?.totalGoodQty} onChange={(e)=>handleOnChangeInput("secondPass.totalGoodQty",e)} fullWidth label="Total Good" variant="outlined" />
                                     
                                     <Grid container spacing={2} direction="row">
                                         <Grid xs={12} md={12} lg={12} >
-                                            <TextField size='small'value={input?.secondPass?.totalPullOutQty} onChange={(e)=>handleOnChangeInput("secondPass.totalPullOutQty",e)} fullWidth label="Total Pull-out" variant="outlined" />
-                                            <Button size='small' variant="contained" sx={{mt:1.5}} color='primary' startIcon={<Save/>}onClick={()=>{setSharedStateRef.setPassType('secondPassPullOut')}}>Breakdown</Button>
+                                            <TextField type='number' size='small'value={input?.secondPass?.totalPullOutQty} onChange={(e)=>handleOnChangeInput("secondPass.totalPullOutQty",e)} fullWidth label="Total Pull-out" variant="outlined" />
+                                            <Button size='small' variant="contained" sx={{mt:1.5}} color='primary' startIcon={<Save/>}onClick={()=>{setSharedStateRef.setPassType({...sharedStateRef.passType,name:'secondPassPullOut', firstDefect:inspections?.firstPass?.defectQty,
+                firstPullOut:input?.firstPass?.totalPullOutQty,
+                secondPullOut:input?.secondPass?.totalPullOutQty,})}}>Breakdown</Button>
+                                            
                                         </Grid>
                                     </Grid>
                                     </Box>

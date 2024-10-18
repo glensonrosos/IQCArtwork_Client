@@ -9,7 +9,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { getAreas } from '../../../../actions/areas';
 import { getDefects } from '../../../../actions/defects';
-import {createDefectData,getDefectDatas} from '../../../../actions/defectDatas';
+import {createDefectData,getDefectDatas,checkEmptyDefect} from '../../../../actions/defectDatas';
 
 import { AUTH_LOGOUT } from '../../../../constant/actionTypes';
 import decode from 'jwt-decode';
@@ -28,7 +28,13 @@ const PassTable = ({setSharedStateRef,sharedStateRef}) => {
 
   const query = useQuery();
   const queryId = query.get('id') || null;
-  const [passType, setPassType] = useState('firstPassDefect');
+  const [passType, setPassType] = useState({
+    name:'firstPassDefect',
+    firstDefect:0,
+    firstPullOut:0,
+    secondPullOut:0
+  });
+
   const [passText, setPassText] = useState({
     text: '1st Pass - Defect Qty',
     color: '#00d2d3',
@@ -38,9 +44,10 @@ const PassTable = ({setSharedStateRef,sharedStateRef}) => {
   setSharedStateRef.setPassType = setPassType;
 
   const [rows, setRows] = useState([]);
+  const [majorQtyVal, setMajorQtyVal] = useState(0);
   const { areas, isLoading: areaLoading } = useSelector((state) => state.areas);
   const { defects, isLoading: defectLoading } = useSelector((state) => state.defects);
-  const { defectDatas,defectDetailsLogs, isLoading: defectDataLoading } = useSelector((state) => state.defectDatas);
+  const { defectDatas,defectDetailsLogs, isLoading: defectDataLoading, emptyDefect } = useSelector((state) => state.defectDatas);
 
   const [inputArea, setInputArea] = useState([]);
   const [inputDefect, setInputDefect] = useState([]);
@@ -52,17 +59,17 @@ const PassTable = ({setSharedStateRef,sharedStateRef}) => {
 
   useEffect(() => {
     //['firstPassDefect', 'firstPassPullOut', 'secondPassPullOut']
-    if(passType == 'firstPassDefect')
+    if(passType.name == 'firstPassDefect')
         setPassText({ text: '1st Pass - Defect Qty', color: '#0abde3'})
-    else if(passType == 'firstPassPullOut')
+    else if(passType.name == 'firstPassPullOut')
         setPassText({ text: '1st Pass - Pull-Out Qty', color: '#ff9f43'})
-    else if(passType == 'secondPassPullOut')
+    else if(passType.name == 'secondPassPullOut')
         setPassText({ text: '2nd Pass - Pull-Out Qty', color: '#ee5253'})
     if(queryId != null){
       console.log(`getDefectDatas called useffect`)
-      dispatch(getDefectDatas({inspectionId:queryId,passType}));
+      dispatch(getDefectDatas({inspectionId:queryId,passType:passType.name}));
     }
-  }, [passType,queryId]);
+  }, [passType.name,queryId]);
 
   useEffect(()=>{
     if(!defectDataLoading){
@@ -166,6 +173,19 @@ const PassTable = ({setSharedStateRef,sharedStateRef}) => {
         setSnackbar({ children: `Inspection Details Empty`, severity: 'error' });
         flag = false;
     }
+
+    if(passType.name === 'firstPassDefect' && parseInt(passType.firstDefect) === 0 ){
+      setSnackbar({ children: 'Add row is not allow, since the Qty is 0', severity: 'error' });
+      flag = false;
+    }else if(passType.name === 'firstPassPullOut' && parseInt(passType.firstPullOut) === 0){
+      setSnackbar({ children: 'Add row is not allow, since the Qty is 0', severity: 'error' });
+      flag = false;
+    }else if(passType.name === 'secondPassPullOut'&& parseInt(passType.secondPullOut) === 0){
+      setSnackbar({ children: 'Add row is not allow, since the Qty is 0', severity: 'error' });
+      flag = false;
+    }
+
+
     if(flag){
         // Calculate the new ID based on the max existing row ID
         const maxId = rows.length > 0 ? Math.max(...rows.map((row) => row.id)) : 0;
@@ -269,10 +289,27 @@ const PassTable = ({setSharedStateRef,sharedStateRef}) => {
     },
   ];
 
-  const handleProcessRowUpdate = (newRow) => {
+  const handleProcessRowUpdate = (newRow,oldRow) => {
+
+    setMajorQtyVal(newRow.majorQty);
+
     const updatedRows = rows.map((row) => (row.id === newRow.id ? newRow : row));
     setRows(updatedRows);
-    return newRow;
+
+    const qty = parseInt(newRow.majorQty);
+
+    if(passType.name == 'firstPassDefect' && qty > parseInt(passType.firstDefect)){
+      setSnackbar({ children: 'Qty must be equal or lesser to 1st Pass Defect total', severity: 'error' });
+      return oldRow
+    }else if(passType.name == 'firstPassPullOut' && qty > parseInt(passType.firstPullOut)){
+      setSnackbar({ children: 'Qty must be equal or lesser to 1st Pass PullOut total', severity: 'error' });
+      return oldRow
+    }else if(passType.name == 'secondPassPullOut' && qty > parseInt(passType.secondPullOut)){
+      setSnackbar({ children: 'Qty must be equal or lesser to 2nd Pass PullOut total', severity: 'error' });
+      return oldRow
+    }else{
+      return newRow;
+    }
   };
 
   const handleProcessRowUpdateError = (error) => {
@@ -286,10 +323,6 @@ const PassTable = ({setSharedStateRef,sharedStateRef}) => {
           setSnackbar({ children: `Inspection Details Empty`, severity: 'error' });
           flag = false;
       }
-      if(rows.length === 0) {
-        setSnackbar({ children: `No Data to be Save`, severity: 'error' });
-        flag = false;
-      }
 
       // check if one of the rows are invalid
       for (let i = 0; i < rows.length; i++) {
@@ -300,35 +333,36 @@ const PassTable = ({setSharedStateRef,sharedStateRef}) => {
           flag = false;
           break; // Exit the loop once a failure condition is found
         }
+
+
+        if(passType.name == 'firstPassDefect' && parseInt(row.majorQty) > parseInt(passType.firstDefect)){
+          setSnackbar({ children: `Invalid MajorQty inputed`, severity: 'error' });
+          flag = false;
+        }else if(passType.name == 'firstPassPullOut' && parseInt(row.majorQty) > parseInt(passType.firstPullOut)){
+          setSnackbar({ children: `Invalid MajorQty inputed`, severity: 'error' });
+          flag = false;
+        }else if(passType.name == 'secondPassPullOut' && parseInt(row.majorQty) > parseInt(passType.secondPullOut)){
+          setSnackbar({ children: `Invalid MajorQty inputed`, severity: 'error' });
+          flag = false;
+        }
+
       }
 
       if(flag){
         const newUser = `${user?.result?.firstname} ${user?.result?.lastname}`;
+
+        setSnackbar({ children: `Successfully Save Changes`, severity: 'success' });
         
-        await dispatch(createDefectData({ inspectionId:queryId,passType:passType,defectDetails:rows,editedBy:newUser}));
-        await  dispatch(getDefectDatas({inspectionId:queryId,passType}));
+        await dispatch(createDefectData({ inspectionId:queryId,passType:passType.name,defectDetails:rows,editedBy:newUser}));
+        await dispatch(getDefectDatas({inspectionId:queryId,passType:passType.name}));
+
+        // update checkEmptyDefect
+        await dispatch(checkEmptyDefect({ inspectionId:queryId}));
       }  
   }
 
    // USER
    const [user,setUser] = useState(JSON.parse(localStorage.getItem('profile')));
-
-   useEffect(()=>{
-     const token = user?.token;
-     if(token){
-       const decodedToken = decode(token);
-       if(decodedToken.exp * 1000 < new Date().getTime())
-         handleLogout();
-     }else{
-       handleLogout();
-     }
-   },[rows,onSaveChanges]);
- 
-   const handleLogout = () =>{
-     dispatch({type: AUTH_LOGOUT});
-     navigate(`/login`);
-     setUser(null);
-   }
    // USER
 
   return (

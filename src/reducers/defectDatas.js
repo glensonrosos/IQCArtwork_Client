@@ -1,4 +1,4 @@
-import { CREATE_DEFECT_DATA,GET_DEFECT_DATAS,SET_MESSAGE_NULL,START_LOADING_HOME,END_LOADING_HOME } from "../constant/actionTypes";
+import { CREATE_DEFECT_DATA,GET_DEFECT_DATAS,CHECK_EMPTY_DEFECT,SET_MESSAGE_NULL,START_LOADING_HOME,END_LOADING_HOME } from "../constant/actionTypes";
 
 const defaultState = {
     isLoading: false,
@@ -8,6 +8,7 @@ const defaultState = {
     numberOfPages:1,
     total:1,
     message: null,
+    emptyDefect: null,
 }
 
 
@@ -32,6 +33,11 @@ export default(state = defaultState,action) =>{
                     message:'good',
                     defectDatas :action.payload?.defectDatas
             };
+        case CHECK_EMPTY_DEFECT:
+            return {
+                ...state,
+                message: null,
+            };
         case START_LOADING_HOME:
             return{
                 ...state,
@@ -46,6 +52,7 @@ export default(state = defaultState,action) =>{
             return{
                 ...state,
                 message:null,
+                emptyDefect:null,
             }
         default:
             return state;
