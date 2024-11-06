@@ -1,5 +1,5 @@
 import * as api from '../api';
-import { GET_DEFECT_DATAS, CREATE_DEFECT_DATA,CHECK_EMPTY_DEFECT,START_LOADING_HOME,END_LOADING_HOME,SET_MESSAGE_NULL } from '../constant/actionTypes';
+import { GET_DEFECT_DATAS, CREATE_DEFECT_DATA,CHECK_EMPTY_DEFECT,START_LOADING_HOME,END_LOADING_HOME,SET_CLEAR_STATES,SET_MESSAGE_NULL } from '../constant/actionTypes';
 
 export const getDefectDatas = ({inspectionId,passType}) => async (dispatch) =>{
     try{
@@ -37,4 +37,8 @@ export const checkEmptyDefect = (newDefectData) => async (dispatch) =>{
 
 export const setItemMessageNull = () => async (dispatch) =>{
     dispatch({type: SET_MESSAGE_NULL});
+}
+
+export const setDefectDataClearStates = () => async (dispatch) =>{
+    dispatch({type: SET_CLEAR_STATES});
 }

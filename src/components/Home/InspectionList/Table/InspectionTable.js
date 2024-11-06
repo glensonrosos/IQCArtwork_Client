@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { DataGridPro,GridToolbarContainer,GridToolbarColumnsButton  } from '@mui/x-data-grid-pro';
-import {Box,TextField,Dialog,DialogTitle,IconButton,DialogContent,Autocomplete,Paper,Pagination,PaginationItem,Stack, FormControlLabel,Checkbox,Button,Backdrop,CircularProgress,Snackbar,Alert, Typography} from '@mui/material';
+import {Box,TextField,Dialog,DialogTitle,IconButton,ListItemText ,DialogContent,Autocomplete,Paper,Pagination,PaginationItem,Stack, FormControlLabel,Checkbox,Button,Backdrop,CircularProgress,Snackbar,Alert, Typography} from '@mui/material';
 import Grid from '@mui/material/Unstable_Grid2';
 
 import Accordion from '@mui/material/Accordion';
@@ -29,7 +29,7 @@ import {getBuyers} from '../../../../actions/buyers';
 import {getMaterials} from '../../../../actions/materials';
 import {getSuppliers} from '../../../../actions/suppliers';
 
-import {getInspections,getInspectionsBySearch,getExportReportList,setInspectionMessageNull} from '../../../../actions/inspections';
+import {getInspections,getInspectionsBySearch,getExportReportList,getExportSumReport,getExportDefectsReport,setInspectionMessageNull,setInspectionClearStates} from '../../../../actions/inspections';
 
 import {useNavigate,useLocation} from 'react-router-dom';
 
@@ -61,7 +61,7 @@ const InspectionTable = () => {
   const {suppliers,isLoading:supplierLoading} = useSelector(state=> state.suppliers);
   const {buyers,isLoading:buyerLoading} = useSelector(state=> state.buyers);
   const {materials,isLoading:materialLoading} = useSelector(state=> state.materials);
-  const {inspections,message:inspectionMessage,isLoading:inspectionLoading,numberOfPages,inspectionsList,defectDataList } = useSelector(state=> state.inspections);
+  const {inspections,message:inspectionMessage,isLoading:inspectionLoading,numberOfPages,inspectionsList,defectDataList,exportSumReport,exportDefectsReport } = useSelector(state=> state.inspections);
   
   const[input,setInput] = useState({
     itemCode: null,
@@ -98,6 +98,9 @@ const InspectionTable = () => {
 
   const [snackbar, setSnackbar] = useState(null);
   const handleCloseSnackbar = () => setSnackbar(null);
+
+  const icon = <CheckBoxOutlineBlankIcon fontSize="small" />;
+  const checkedIcon = <CheckBoxIcon fontSize="small" />;
 
   const handleChangePage = (newPage) =>{
     if(itemCode == '' && color == ''&& dateStart == '' && dateEnd == '' && supplier == '' && buyer == ''
@@ -138,31 +141,229 @@ const InspectionTable = () => {
 
   useEffect(()=>{
     if(!inspectionLoading && inspectionMessage == 'export list' && inspectionsList.length > 0 && defectDataList.length > 0){
-      
+      // Define the header data in a single row
+      const headerData = [
+        ["Date Start", "Date End", "ItemCode", "Color", "Material", "Buyer", "Supplier"]
+      ];
+
+      // Define the search criteria data in the row below the header
+      const searchCriteriaData = [
+        [
+            inputReport?.dateStart ? moment(inputReport.dateStart).format('MM-DD-YYYY') : null,
+            inputReport?.dateEnd ? moment(inputReport.dateEnd).format('MM-DD-YYYY') : null,
+            inputReport?.itemCode || null,
+            inputReport?.color || null,
+            inputReport?.material?.name || null,
+            inputReport?.buyer?.name || null,
+            inputReport?.supplier
+                ? inputReport.supplier.map(s => s.name).join(', ') // Join supplier names with commas
+                : null
+        ]
+      ];
+
+      // Add a few empty rows for spacing
+      const emptyRows = Array(2).fill([]); // Adjust the number of empty rows as needed
+
+      // Map inspectionsList into rows of data
+      const inspectionsRows = inspectionsList.map((inspection) => [
+        inspection.RowId,
+        inspection.Date,
+        inspection.Supplier,
+        inspection.ItemCode,
+        inspection.ItemDescription,
+        inspection.ColorFinish,
+        inspection.Buyer,
+        inspection.Material,
+        inspection.Weight,
+        inspection.TotalMinWork,
+        inspection.DeliveryQty,
+        inspection.TotalGoodQty,
+        inspection.TotalPullOutQty,
+        inspection.FirstPass_Defect,
+        inspection.FirstPass_Good,
+        inspection.FirstPass_PullOut,
+        inspection.SecondPass_Good,
+        inspection.SecondPass_PullOut,
+        inspection.Unfinished,
+        inspection.DateClosure
+      ]);
+
+      // Define the inspections list header row
+      const inspectionsHeader = [
+        "RowId", "Date", "Supplier", "ItemCode", "ItemDescription", "ColorFinish",
+        "Buyer", "Material", "Weight","TotalMinWork", "DeliveryQty", "Total Good",
+        "Total PullOut", "(1P) Defect", "(1P) Good", "(1P) PullOut",
+        "(2P) Good", "(2P) PullOut", "Unfinished", "DateClosure"
+      ];
+
+      // Combine everything into a single sheet data array
+      const searchData = [...headerData, ...searchCriteriaData,];
+      const sheetData = [inspectionsHeader, ...inspectionsRows];
+
+      // Create a new workbook
       const wb = XLSX.utils.book_new();
 
-      // Sheet 1: inspectionsList
-      const wsInspections = XLSX.utils.json_to_sheet(inspectionsList);
+      // Convert sheetData into a sheet and append it to the workbook
+      const wsInspections = XLSX.utils.aoa_to_sheet(sheetData);
       XLSX.utils.book_append_sheet(wb, wsInspections, "InspectionList");
 
-      // Sheet 2: defectDataList
+      // Add defectDataList to a new sheet
       const wsDefects = XLSX.utils.json_to_sheet(defectDataList);
       XLSX.utils.book_append_sheet(wb, wsDefects, "DefectList");
 
-      // Create a file
+       // Add defectDataList to a new sheet
+       const wsSearch = XLSX.utils.aoa_to_sheet(searchData);
+       XLSX.utils.book_append_sheet(wb, wsSearch, "SearchCriteria");
+
+      // Write to a buffer and save the file using FileSaver
       const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-      
-      // Save the file using FileSaver
       const data = new Blob([excelBuffer], { type: 'application/octet-stream' });
       saveAs(data, 'inspection_report.xlsx');
+
       
       setSnackbar({ children: `Exporting report `, severity: 'success' });
 
       dispatch(setInspectionMessageNull());
-     
+    }
+    else if(!inspectionLoading && inspectionMessage == 'export sum' && exportSumReport.length > 0 ){
+      // Define the header data in a single row
+      const headerData = [
+        ["Date Start", "Date End", "ItemCode", "Color", "Material", "Buyer", "Supplier"]
+      ];
+
+      // Define the search criteria data in the row below the header
+      const searchCriteriaData = [
+        [
+            inputReport?.dateStart ? moment(inputReport.dateStart).format('MM-DD-YYYY') : null,
+            inputReport?.dateEnd ? moment(inputReport.dateEnd).format('MM-DD-YYYY') : null,
+            inputReport?.itemCode || null,
+            inputReport?.color || null,
+            inputReport?.material?.name || null,
+            inputReport?.buyer?.name || null,
+            inputReport?.supplier
+                ? inputReport.supplier.map(s => s.name).join(', ') // Join supplier names with commas
+                : null
+        ]
+      ];
+
+      // Add a few empty rows for spacing
+      const emptyRows = Array(2).fill([]); // Adjust the number of empty rows as needed
+
+      // Map inspectionsList into rows of data
+      const inspectionsRows = exportSumReport.map((inspection) => [
+        inspection.RowId,
+        inspection.Supplier,
+        inspection.ItemCode,
+        inspection.ItemDescription,
+        inspection.Buyer,
+        inspection.Material,
+        inspection.DeliveryQty,
+        inspection.TotalGoodQty,
+        inspection.TotalPullOutQty,
+        inspection.FirstPass_Defect,
+        inspection.FirstPass_Good,
+        inspection.FirstPass_PullOut,
+        inspection.SecondPass_Good,
+        inspection.SecondPass_PullOut,
+        inspection.Unfinished,
+      ]);
+
+      // Define the inspections list header row
+      const inspectionsHeader = [
+        "RowId","Supplier", "Item Code", "Item Description","Buyer", "Material", "Delivery Qty",
+        "Overall Good","Overall PullOut","(1P) Defect overall", "(1P) Good overall", "(1P) PullOut overall",
+        "(2P) Good overall", "(2P) PullOut overall","Unfinished overall",
+      ];
+
+      // Combine everything into a single sheet data array
+      const sheetData = [inspectionsHeader, ...inspectionsRows];
+      const searchData = [...headerData, ...searchCriteriaData,]
+
+      // Create a new workbook
+      const wb = XLSX.utils.book_new();
+
+      // Convert sheetData into a sheet and append it to the workbook
+      const wsInspections = XLSX.utils.aoa_to_sheet(sheetData);
+      XLSX.utils.book_append_sheet(wb, wsInspections, "InspectionList");
+
+      // Add defectDataList to a new sheet
+      const wsSearch = XLSX.utils.aoa_to_sheet(searchData);
+      XLSX.utils.book_append_sheet(wb, wsSearch, "SearchCriteria");
+
+      // Write to a buffer and save the file using FileSaver
+      const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      const data = new Blob([excelBuffer], { type: 'application/octet-stream' });
+      saveAs(data, 'inspection_sum.xlsx');
+
+      
+      setSnackbar({ children: `Exporting report `, severity: 'success' });
+
+      dispatch(setInspectionMessageNull());
+    }
+    else if(!inspectionLoading && inspectionMessage == 'export defects' && exportDefectsReport.length > 0 ){
+      // Define the header data in a single row
+      const headerData = [
+        ["Date Start", "Date End", "ItemCode", "Color", "Material", "Buyer", "Supplier"]
+      ];
+
+      // Define the search criteria data in the row below the header
+      const searchCriteriaData = [
+        [
+            inputReport?.dateStart ? moment(inputReport.dateStart).format('MM-DD-YYYY') : null,
+            inputReport?.dateEnd ? moment(inputReport.dateEnd).format('MM-DD-YYYY') : null,
+            inputReport?.itemCode || null,
+            inputReport?.color || null,
+            inputReport?.material?.name || null,
+            inputReport?.buyer?.name || null,
+            inputReport?.supplier
+                ? inputReport.supplier.map(s => s.name).join(', ') // Join supplier names with commas
+                : null
+        ]
+      ];
+
+  
+
+      // Map inspectionsList into rows of data
+      const inspectionsRows = exportDefectsReport.map((inspection) => [
+
+        inspection.defectName,
+        inspection.defectData[0].totalMajorQty,
+        inspection.defectData[1].totalMajorQty,
+        inspection.defectData[2].totalMajorQty,
+      ]);
+
+      // Define the inspections list header row
+      const inspectionsHeader = [
+        "Defect Name","(1P) Defect Qty", "(1P) PullOut Qty","(2P) PullOut Qty",
+      ];
+
+      // Combine everything into a single sheet data array
+      const sheetData = [inspectionsHeader, ...inspectionsRows];
+      const searchData = [...headerData, ...searchCriteriaData,]
+
+      // Create a new workbook
+      const wb = XLSX.utils.book_new();
+
+      // Convert sheetData into a sheet and append it to the workbook
+      const wsInspections = XLSX.utils.aoa_to_sheet(sheetData);
+      XLSX.utils.book_append_sheet(wb, wsInspections, "InspectionList");
+
+      // Add defectDataList to a new sheet
+      const wsSearch = XLSX.utils.aoa_to_sheet(searchData);
+      XLSX.utils.book_append_sheet(wb, wsSearch, "SearchCriteria");
+
+      // Write to a buffer and save the file using FileSaver
+      const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      const data = new Blob([excelBuffer], { type: 'application/octet-stream' });
+      saveAs(data, 'inspection_defects.xlsx');
+
+      
+      setSnackbar({ children: `Exporting report `, severity: 'success' });
+
+      dispatch(setInspectionMessageNull());
     }
     else if(!inspectionLoading && inspectionMessage == 'export no'){
-      setSnackbar({ children: `No Data found, Defect Datas is empty`, severity: 'error' });
+      setSnackbar({ children: `No Data found`, severity: 'error' });
       console.log('called error')
       dispatch(setInspectionMessageNull());
     }
@@ -210,29 +411,35 @@ const InspectionTable = () => {
           });
     }
 
-    const handleOnChangeInputReport = (name,e,val=null) =>{
-      if(name === "dateStart" || name === "dateEnd"){
-          setInputReport({
-          ...inputReport,
-          [name]: e
-          });
-      }else if(name === "material" || name === "buyer" || name === "supplier"){
-        setInputReport({
-              ...inputReport,
-              [name]: val 
-          });
-      }else if(name === "unfinished"){
-        setInputReport({
-                ...inputReport,
-                [name]: e.target.checked
-            });
+    const handleOnChangeInputReport = (name, e, val = null) => {
+      if (name === "dateStart" || name === "dateEnd") {
+          setInputReport((prev) => ({
+              ...prev,
+              [name]: e
+          }));
+      } else if (name === "supplier") {
+          setInputReport((prev) => ({
+              ...prev,
+              [name]: val ? [...val] : []
+          }));
+      } else if (name === "material" || name === "buyer") {
+          setInputReport((prev) => ({
+              ...prev,
+              [name]: val
+          }));
+      } else if (name === "unfinished") {
+          setInputReport((prev) => ({
+              ...prev,
+              [name]: e.target.checked
+          }));
+      } else {
+          setInputReport((prev) => ({
+              ...prev,
+              [name]: e.target.value
+          }));
       }
-      else
-      setInputReport({
-              ...inputReport,
-              [name]: e.target.value 
-          });
-    }
+  };
+  
 
     const onSearch = () =>{
 
@@ -331,7 +538,12 @@ const InspectionTable = () => {
   const RenderDate = (row) =>{
     return(
       <Typography 
-          onClick={() => { navigate(`/pass-details?id=${row?.id}`); }} 
+          onClick={() => { 
+            // clear states
+            dispatch(setInspectionClearStates());
+            
+            navigate(`/pass-details?id=${row?.id}`);
+           }} 
           sx={{ textDecoration: 'underline', cursor: 'pointer' }}
         >
         {row.inspectiondate}
@@ -443,17 +655,64 @@ const InspectionTable = () => {
   };
 
   const onExportReportList = () =>{
+      let newDateStart = moment(inputReport?.dateStart).isBetween(moment('2000','YYYY'), moment().add(3,'y'));
+      let newDateEnd = moment(inputReport?.dateEnd).isBetween(moment('2000','YYYY'), moment().add(3,'y'));
 
-      dispatch(getExportReportList({
+      if( newDateStart && newDateEnd ){
+        dispatch(getExportReportList({
+          itemcode: inputReport?.itemCode || '',
+          color: inputReport?.color || '',
+          datestart: inputReport?.dateStart || '',
+          dateend: inputReport?.dateEnd || '',
+          buyer: inputReport?.buyer?._id || '',
+          supplier: inputReport?.supplier || [],
+          material: inputReport?.material?._id || ''}));
+  
+          setIsLoading(true);
+      }else
+        setSnackbar({ children: `Date Range inputed is invalid`, severity: 'error' });
+  }
+
+  const onExportReportSum = () =>{
+
+
+    let newDateStart = moment(inputReport?.dateStart).isBetween(moment('2000','YYYY'), moment().add(3,'y'));
+    let newDateEnd = moment(inputReport?.dateEnd).isBetween(moment('2000','YYYY'), moment().add(3,'y'));
+
+    if( newDateStart && newDateEnd ){
+      dispatch(getExportSumReport({
         itemcode: inputReport?.itemCode || '',
         color: inputReport?.color || '',
         datestart: inputReport?.dateStart || '',
         dateend: inputReport?.dateEnd || '',
         buyer: inputReport?.buyer?._id || '',
-        supplier: inputReport?.supplier?._id || '',
+        supplier: inputReport?.supplier || [],
         material: inputReport?.material?._id || ''}));
 
         setIsLoading(true);
+    }else
+      setSnackbar({ children: `Date Range inputed is invalid`, severity: 'error' });
+  }
+
+  const onExportReportDefects= () =>{
+
+
+    let newDateStart = moment(inputReport?.dateStart).isBetween(moment('2000','YYYY'), moment().add(3,'y'));
+    let newDateEnd = moment(inputReport?.dateEnd).isBetween(moment('2000','YYYY'), moment().add(3,'y'));
+
+    if( newDateStart && newDateEnd ){
+      dispatch(getExportDefectsReport({
+        itemcode: inputReport?.itemCode || '',
+        color: inputReport?.color || '',
+        datestart: inputReport?.dateStart || '',
+        dateend: inputReport?.dateEnd || '',
+        buyer: inputReport?.buyer?._id || '',
+        supplier: inputReport?.supplier || [],
+        material: inputReport?.material?._id || ''}));
+
+        setIsLoading(true);
+    }else
+      setSnackbar({ children: `Date Range inputed is invalid`, severity: 'error' });
   }
 
   return (
@@ -759,8 +1018,8 @@ const InspectionTable = () => {
           PaperProps={{
           style: {
               margin: 0,
-              width: '100%',
-              height: '90%',
+              width: '80%',
+              height: '80%',
               maxHeight: '90%',
               borderRadius: 0,
               },
@@ -783,71 +1042,91 @@ const InspectionTable = () => {
             </IconButton>
           <DialogContent>
           
-          <Grid container spacing={2} direction="row" justifyContent="center">
-                <Grid xs={6} md={6} lg={6}>
+          <Grid container spacing={1} direction="row" justifyContent="center">
+                <Grid xs={4} md={4} lg={4}>
                     <Box component="form" noValidate autoComplete="off"  sx={{
                     '& .MuiTextField-root': { m: 1, width: '40ch' },
                 }}>
-                          <DatePicker label="Inspection Start" size='small' maxDate={moment().add(3,'y')} minDate={moment('2000','YYYY')} onChange={(e)=>handleOnChangeInputReport("dateStart",e)} value={inputReport?.dateStart}/>
-                          <DatePicker label="Inspection End" size='small' maxDate={moment().add(3,'y')} minDate={moment('2000','YYYY')} onChange={(e)=>handleOnChangeInputReport("dateEnd",e)} value={inputReport?.dateEnd}/>
-                          <TextField  value={inputReport?.itemCode} onChange={(e)=>handleOnChangeInputReport("itemCode",e)} fullWidth label="ItemCode" size='small' variant="outlined" />
-                          <TextField  value={inputReport?.color} onChange={(e)=>handleOnChangeInputReport("color",e)} fullWidth label="Color" size='small' variant="outlined" />
-                            <Autocomplete
-                                  disablePortal
-                                  options={inputSupplierReport}
-                                  clearOnEscape
-                                  onChange={(e,v)=>handleOnChangeInputReport("supplier",e,v)}
-                                  getOptionLabel={(option) => option.name}
-                                  value={inputReport?.supplier}
-                                  size='small'
-                                  isOptionEqualToValue={(option, value) => option.value === value.value}
-                                  sx={{ width: 250 }}
-                                  renderInput={(params) => <TextField {...params} label="Supplier" />}
-                                  />
-                            <Autocomplete
-                                  disablePortal
-                                  id="combo-box-demo"
-                                  options={inputBuyerReport}
-                                  clearOnEscape
-                                  onChange={(e,v)=>handleOnChangeInputReport("buyer",e,v)}
-                                  getOptionLabel={(option) => option.name}
-                                  value={inputReport?.buyer}
-                                  size='small'
-                                  isOptionEqualToValue={(option, value) => option.value === value.value}
-                                  sx={{ width: 250 }}
-                                  renderInput={(params) => <TextField {...params} label="Buyer" />}
-                                  />
-
-                              <Autocomplete
-                                  disablePortal
-                                  id="combo-box-demo"
-                                  options={inputMaterialReport}
-                                  clearOnEscape
-                                  onChange={(e,v)=>handleOnChangeInputReport("material",e,v)}
-                                  getOptionLabel={(option) => option.name}
-                                  value={inputReport?.material}
-                                  size='small'
-                                  isOptionEqualToValue={(option, value) => option.value === value.value}
-                                  sx={{ width: 250 }}
-                                  renderInput={(params) => <TextField {...params} label="Material" />}
-                                  />
-                                  
-                                <Grid container spacing={1} justifyContent="flex-start" alignItems="flex-start " direction="row">
-                              <Grid xs={6} md={4} lg={4}>
-                                <Button variant="contained" color="primary" onClick={onClearReport} size="medium" fullWidth startIcon={<Save/>}> Clear</Button>
-                              </Grid>
-                              <Grid xs={6} md={4} lg={4}>
-                                <Button variant="outlined" color="primary" onClick={onExportReportList} size="medium" fullWidth startIcon={<Assessment/>}> Export Report </Button>
-                              </Grid>
-                            </Grid>
+                    <DatePicker label="Inspection Start" size='small' maxDate={moment().add(3,'y')} minDate={moment('2000','YYYY')} onChange={(e)=>handleOnChangeInputReport("dateStart",e)} value={inputReport?.dateStart}/>
+                    <DatePicker label="Inspection End" size='small' maxDate={moment().add(3,'y')} minDate={moment('2000','YYYY')} onChange={(e)=>handleOnChangeInputReport("dateEnd",e)} value={inputReport?.dateEnd}/>   
+                    <TextField  value={inputReport?.itemCode} onChange={(e)=>handleOnChangeInputReport("itemCode",e)} fullWidth label="ItemCode" size='small' variant="outlined" />
+                      <TextField  value={inputReport?.color} onChange={(e)=>handleOnChangeInputReport("color",e)} fullWidth label="Color" size='small' variant="outlined" />
+                      <Autocomplete
+                          disablePortal
+                          id="combo-box-demo"
+                          options={inputMaterialReport}
+                          clearOnEscape
+                          onChange={(e,v)=>handleOnChangeInputReport("material",e,v)}
+                          getOptionLabel={(option) => option.name}
+                          value={inputReport?.material}
+                          size='small'
+                          isOptionEqualToValue={(option, value) => option.value === value.value}
+                          sx={{ width: 250 }}
+                          renderInput={(params) => <TextField {...params} label="Material" />}
+                          />
                     </Box>
                 </Grid>
-                <Grid xs={6} md={6} lg={6}>
-                   
-                      
-                    
+                <Grid xs={4} md={4} lg={4}>
+                <Box component="form" noValidate autoComplete="off"  sx={{
+                    '& .MuiTextField-root': { m: 1, width: '40ch' },
+                }}>
+                      {/*  */}
+                      <Autocomplete
+                              disablePortal
+                              id="combo-box-demo"
+                              options={inputBuyerReport}
+                              clearOnEscape
+                              onChange={(e,v)=>handleOnChangeInputReport("buyer",e,v)}
+                              getOptionLabel={(option) => option.name}
+                              value={inputReport?.buyer}
+                              size='small'
+                              isOptionEqualToValue={(option, value) => option.value === value.value}
+                              sx={{ width: 250 }}
+                              renderInput={(params) => <TextField {...params} label="Buyer" />}
+                              />
+                        <Autocomplete
+                              multiple
+                              disablePortal
+                              options={inputSupplierReport}
+                              clearOnEscape
+                              onChange={(e, value) => handleOnChangeInputReport("supplier", e, value)}
+                              getOptionLabel={(option) => option.name}
+                              value={inputReport?.supplier || []}
+                              size="small"
+                              isOptionEqualToValue={(option, value) => option.name === value.name}
+                              sx={{ width: 250 }}
+                              renderInput={(params) => <TextField {...params} label="Supplier" />}
+                              renderOption={(props, option, { selected }) => (
+                                  <li {...props}>
+                                      <Checkbox checked={selected} />
+                                      <ListItemText primary={option.name} />
+                                  </li>
+                              )}
+                          />
+                    </Box>
                 </Grid>
-            </Grid>
+                <Grid xs={4} md={4} lg={4}>
+                <Box component="form" noValidate autoComplete="off"  sx={{
+                    '& .MuiTextField-root': { m: 1, width: '40ch' },
+                }}>
+                    <Grid container spacing={3} justifyContent="flex-start" alignItems="flex-start " direction="row">
+                        <Grid xs={10} md={10} lg={10}>
+                          <Button variant="contained" color="primary" onClick={onExportReportList} size="medium" fullWidth startIcon={<Assessment/>}>{` (Inspecion,Defects) List`}</Button>
+                        </Grid>
+                        <Grid xs={10} md={10} lg={10}>
+                          <Button variant="contained" color="success" onClick={onExportReportSum} size="medium" fullWidth startIcon={<Assessment/>}>  Summary </Button>
+                        </Grid>
+                        <Grid xs={10} md={10} lg={10}>
+                          <Button variant="contained" color="warning" onClick={onExportReportDefects} size="medium" fullWidth startIcon={<Assessment/>}> Defects Datas </Button>
+                        </Grid>
+                        <Grid xs={8} md={8} lg={8}>
+                          <Button variant="outlined" color="error" onClick={onClearReport} size="medium" fullWidth startIcon={<Save/>}> Clear</Button>
+                        </Grid>
+                    </Grid>
+                    </Box>
+                </Grid>
+          </Grid>
+
           </DialogContent>
         </Dialog>
       <div>

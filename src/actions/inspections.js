@@ -1,5 +1,6 @@
 import * as api from '../api';
-import {CREATE_INSPECTION,START_LOADING_HOME,EDIT_INSPECTION,END_LOADING_HOME,SET_MESSAGE_NULL,GET_INSPECTION_BY_ID,GET_INSPECTIONS_BY_SEARCH, GET_INSPECTIONS, GET_EXPORT_REPORT_LIST} from '../constant/actionTypes';
+import {CREATE_INSPECTION,START_LOADING_HOME,EDIT_INSPECTION,END_LOADING_HOME,SET_MESSAGE_NULL,SET_CLEAR_STATES,GET_INSPECTION_BY_ID,GET_INSPECTIONS_BY_SEARCH, GET_INSPECTIONS, 
+    GET_EXPORT_REPORT_LIST,GET_EXPORT_SUM_REPORT,GET_EXPORT_DEFECTS_REPORT} from '../constant/actionTypes';
 
 
 export const getInspections = (page) => async (dispatch) =>{
@@ -53,6 +54,34 @@ export const getExportReportList = (report) => async (dispatch) =>{
     }
 }
 
+export const getExportSumReport = (report) => async (dispatch) =>{
+    try{
+        dispatch({type: START_LOADING_HOME});
+        const { data } = await api.getExportSumReport(report);
+
+        dispatch({type: GET_EXPORT_SUM_REPORT, payload: data});
+
+        dispatch({type: END_LOADING_HOME});
+
+    }catch(error){
+        console.log(error);
+    }
+}
+
+export const getExportDefectsReport = (report) => async (dispatch) =>{
+    try{
+        dispatch({type: START_LOADING_HOME});
+        const { data } = await api.getExportDefectsReport(report);
+
+        dispatch({type: GET_EXPORT_DEFECTS_REPORT, payload: data});
+
+        dispatch({type: END_LOADING_HOME});
+
+    }catch(error){
+        console.log(error);
+    }
+}
+
 
 
 export const editInspection = (id,editedInspection) => async (dispatch) =>{
@@ -83,5 +112,9 @@ export const getInspectionById = (id) => async (dispatch) =>{
 
 export const setInspectionMessageNull = () => async (dispatch) =>{
     dispatch({type: SET_MESSAGE_NULL});
+}
+
+export const setInspectionClearStates = () => async (dispatch) =>{
+    dispatch({type: SET_CLEAR_STATES});
 }
 

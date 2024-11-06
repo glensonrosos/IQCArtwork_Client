@@ -1,5 +1,5 @@
 import React, { useEffect,useState } from 'react';
-import {Box,Paper,Dialog,AppBar,Toolbar,Typography,Table,TableContainer,TableRow,TableHead,TableBody,TableCell,DialogContent,TextField,Autocomplete,Button,Badge,Backdrop,Tooltip,CircularProgress,Snackbar,Alert,IconButton} from '@mui/material';
+import {Box,Paper,Dialog,DialogTitle,DialogContentText,DialogActions,AppBar,Toolbar,Typography,Table,TableContainer,TableRow,TableHead,TableBody,TableCell,DialogContent,TextField,Autocomplete,Button,Badge,Backdrop,Tooltip,CircularProgress,Snackbar,Alert,IconButton} from '@mui/material';
 import Grid from '@mui/material/Unstable_Grid2';
 
 import {Save,Search,Clear,Pageview} from '@mui/icons-material';
@@ -8,7 +8,7 @@ import Accordion from '@mui/material/Accordion';
 import AccordionSummary from '@mui/material/AccordionSummary';
 import AccordionDetails from '@mui/material/AccordionDetails';
 import AccordionActions from '@mui/material/AccordionActions'
-import {ExpandMore,Close} from '@mui/icons-material/';
+import {ExpandMore,Close,CancelPresentation,DeleteForever} from '@mui/icons-material/';
 
 import { TableVirtuoso } from 'react-virtuoso';
 
@@ -20,7 +20,7 @@ import {getMaterials} from '../../../../actions/materials';
 import {getSuppliers} from '../../../../actions/suppliers';
 import {findItems,setItemMessageNull} from '../../../../actions/items';
 import {createInspection,setInspectionMessageNull,getInspectionById,editInspection} from '../../../../actions/inspections';
-import {checkEmptyDefect} from '../../../../actions/defectDatas';
+import {checkEmptyDefect,createDefectData,getDefectDatas} from '../../../../actions/defectDatas';
 
 
 
@@ -56,6 +56,8 @@ const Form = ({setSharedStateRef,sharedStateRef}) =>{
     const {buyers,isLoading:buyerLoading} = useSelector(state=> state.buyers);
     const {materials,isLoading:materialLoading} = useSelector(state=> state.materials);
     const {items,message:itemMessage,isLoading:itemLoading} = useSelector(state=> state.items);
+    const {counting,isLoading:defectDatasLoading} = useSelector(state=> state.defectDatas);
+
     const [selectedItem,setSelectedItem] = useState({
         item:null
     });
@@ -97,6 +99,7 @@ const Form = ({setSharedStateRef,sharedStateRef}) =>{
     const [inputBuyer,setInputBuyer] = useState([]);
     const [buttonQueryId,setbuttonQueryId] = useState(queryId);
     const [prevInputState, setPrevInputState] = useState([]);
+    const [prevDefectQty, setPrevDefectQty] = useState({});
    
     useEffect(()=>{
 
@@ -125,21 +128,30 @@ const Form = ({setSharedStateRef,sharedStateRef}) =>{
                 setSnackbar({ children: `Duplicate entry cannot update`, severity: 'error' });
                 setInput(prevInputState);
             }
-            else if(inspectionMessage === 'edit good'){
+            else if(inspectionMessage === 'edit good' && inspections){
                
                 setSharedStateRef.setPassType({
                     ...sharedStateRef.passType,name:'firstPassDefect',
-                    firstDefect: input?.firstPass?.defectQty,
-                    firstPullOut: input?.firstPass?.totalPullOutQty,
-                    secondPullOut: input?.secondPass?.totalPullOutQty
+                    firstDefect: inspections[0]?.firstPass?.defectQty,
+                    firstPullOut: inspections[0]?.firstPass?.totalPullOutQty,
+                    secondPullOut: inspections[0]?.secondPass?.totalPullOutQty
                 });
+
+                setPrevInputState({
+                    ...prevInputState,
+                    firstPass:inspections[0].firstPass,
+                    secondPass:inspections[0].secondPass,
+                })
+
+                // update checkEmptyDefect
+                dispatch(checkEmptyDefect({ inspectionId:queryId}));
 
                 setSnackbar({ children: `Successfully updated`, severity: 'success' });
             }
             else if(inspectionMessage === 'no found')
                 navigate(`/inspection-list`);   // redirect if no inspection id found via link search
         }
-    },[inspectionLoading,inspectionMessage]);
+    },[inspectionLoading,inspections,inspectionMessage]);
 
     useEffect(()=>{
         if(prevInputState.buyer !== null ){
@@ -203,11 +215,18 @@ const Form = ({setSharedStateRef,sharedStateRef}) =>{
             }
             setInput(initialInput);
             setPrevInputState(initialInput);
+
+            //check for delete rows if defect set to 0
+            dispatch(checkEmptyDefect({ inspectionId:queryId}));
         }
         if(!inspectionLoading){
             if(inspectionMessage === 'duplicate'){
                 setSnackbar({ children: `Duplicate Entry (Date and Item Code) `, severity: 'error' });
             }else if(inspectionMessage === 'good'){
+
+                 // update checkEmptyDefect
+                 dispatch(checkEmptyDefect({ inspectionId:inspections[0]?._id}));
+
                 setSnackbar({ children: `Successfully Added`, severity: 'success' });
                 navigate(`/pass-details?id=${inspections[0]?._id}`);
                 setbuttonQueryId(inspections[0]?._id);
@@ -222,13 +241,45 @@ const Form = ({setSharedStateRef,sharedStateRef}) =>{
    const handleOnChangeInput = (name,e,val=null) =>{
     if (name.includes('.')) {
         const keys = name.split('.');
-        setInput(prevInput => ({
+        setInput(prevInput => {
+
+            let nameVal = `Defect Qty`
+            let pass = `First Pass - `
+            let passType='first'
+
+
+            if(keys[0] === 'secondPass'){
+                pass = 'Second Pass - '
+                passType = 'second'
+            }
+
+            if(keys[1] === 'totalPullOutQty'){
+                nameVal = `Pull-out Qty`
+                passType += 'PassPullOut'
+            }else
+                passType += 'PassDefect'
+
+            
+            setPrevDefectQty({
+                [keys[0]]:{
+                    [keys[1]]: prevInput[keys[0]][keys[1]]
+                },
+                name:`${pass} ${nameVal}`,
+                passType,
+            });
+
+            return {
             ...prevInput,
             [keys[0]]: {
                 ...prevInput[keys[0]],
-                [keys[1]]: e.target.value
+                    [keys[1]]: e.target.value === '' || e.target.value === null || parseInt(e.target.value) < 0 ? 0 : e.target.value
+                }
             }
-        }));
+    
+    });
+
+        
+       
     }
     else if(name === "timeStart") {
         setInput({
@@ -264,6 +315,20 @@ const Form = ({setSharedStateRef,sharedStateRef}) =>{
             [name]: e.target.value 
         });
     }
+
+    useEffect(()=>{
+       
+        if(!inspectionLoading){
+            if(parseInt(input?.firstPass?.defectQty) === 0 && parseInt(counting?.firstDefectRows) === 1){
+                handleOpenDeleteRowsModal(true);
+            }else if(parseInt(input?.firstPass?.totalPullOutQty) === 0 && parseInt(counting?.firstPullOutRows) === 1){
+                handleOpenDeleteRowsModal(true);
+            }else if(parseInt(input?.secondPass?.totalPullOutQty) === 0 && parseInt(counting?.secondPullOutRows) === 1){
+                handleOpenDeleteRowsModal(true);
+            }
+        }
+
+    },[input.firstPass.defectQty,input.firstPass.totalPullOutQty,input.secondPass.totalPullOutQty,inspectionLoading]);
 
     const onSaveChanges = async () =>{
         let flag = true;
@@ -314,10 +379,7 @@ const Form = ({setSharedStateRef,sharedStateRef}) =>{
                 setSnackbar({ children: `Defects Qty must not be lesser to 0`, severity: 'error' });
                 flag = false;
         }
-        // if(parseInt(input.totalMinWork) < 0 || parseInt(input.totalMinWork) > 999999 || input.totalMinWork == ''){
-        //     setSnackbar({ children: `Total Time(min) inputed is invalid, `, severity: 'error' });
-        //     flag = false;
-        // }
+    
         const weightStr = /^\d+(\.\d{1,4})?(-\d+(\.\d{1,4})?)?$/;
         if(!weightStr.test(input.weight)){
             setSnackbar({ children: `Weight inputed is invalid, `, severity: 'error' });
@@ -355,11 +417,6 @@ const Form = ({setSharedStateRef,sharedStateRef}) =>{
         else if(flag && buttonQueryId !== ''){
             await dispatch(editInspection(queryId,{...input,editedBy:newUser,dateClosure: closure}));
         }
-
-         // update checkEmptyDefect
-        
-         if(queryId !== '')
-            await dispatch(checkEmptyDefect({ inspectionId:queryId}));
 
     };
 
@@ -403,6 +460,52 @@ const Form = ({setSharedStateRef,sharedStateRef}) =>{
     const handleCloseItemModal = () => {
         setOpenItemModal(false);
     };
+
+    const [openDeleteRowsModal, setOpenDeleteRowsModal] = useState(false);
+    const handleOpenDeleteRowsModal = () => {
+        setOpenDeleteRowsModal(true);
+    };
+    const handleCloseDeleteRowsModal = (event, reason) => {
+        if (reason === 'backdropClick' || reason === 'escapeKeyDown') {
+        return;
+        }
+        setOpenDeleteRowsModal(false);
+    };
+
+    const handleCancelRowsDelete = () =>{
+
+        if(prevDefectQty?.firstPass?.defectQty){
+            setInput({...input,
+                firstPass: prevInputState.firstPass,
+                secondPass: prevInputState.secondPass
+            });
+        }else if(prevDefectQty?.firstPass?.totalPullOutQty){
+            setInput({...input,
+                firstPass: prevInputState.firstPass,
+                secondPass: prevInputState.secondPass
+            });
+        }else if(prevDefectQty?.secondPass?.totalPullOutQty){
+            setInput({...input,
+                firstPass: prevInputState.firstPass,
+                secondPass: prevInputState.secondPass
+            });
+        }
+
+        handleCloseDeleteRowsModal();
+    }
+
+    const handleYesRowsDelete = async ()  =>{
+        const newUser = `${user?.result?.firstname} ${user?.result?.lastname}`;
+
+        //alert(JSON.stringify({ inspectionId:queryId,passType:prevDefectQty.passType,defectDetails:[],editedBy:newUser}))
+
+       await dispatch(createDefectData({ inspectionId:queryId,passType:prevDefectQty.passType,defectDetails:[],editedBy:newUser}));
+       //alert(prevDefectQty.passType);
+       await dispatch(getDefectDatas({inspectionId:queryId,passType:prevDefectQty.passType}));
+        
+        handleCloseDeleteRowsModal();
+
+    }
 
     const VirtuosoTableComponents = {
         Scroller: React.forwardRef((props, ref) => (
@@ -665,7 +768,7 @@ const Form = ({setSharedStateRef,sharedStateRef}) =>{
                                     <Grid container spacing={2} direction="row">
                                         <Grid xs={12} md={12} lg={12} >
                                             <TextField size='small' type='number' value={input?.firstPass?.defectQty} onChange={(e)=>handleOnChangeInput("firstPass.defectQty",e)} fullWidth label="Defect Qty" variant="outlined" />
-                                            <Button size='small' variant="contained" sx={{mt:1.5}} color='primary' startIcon={<Save/>} onClick={()=>{setSharedStateRef.setPassType({...sharedStateRef.passType,name:'firstPassDefect', firstDefect:inspections?.firstPass?.defectQty,
+                                            <Button size='small' variant="contained" sx={{mt:1.5}} color={sharedStateRef.passType?.name === 'firstPassDefect' ? 'success' : 'primary'} startIcon={<Save/>} onClick={()=>{setSharedStateRef.setPassType({...sharedStateRef.passType,name:'firstPassDefect', firstDefect:inspections?.firstPass?.defectQty,
                 firstPullOut:input?.firstPass?.totalPullOutQty,
                 secondPullOut:input?.secondPass?.totalPullOutQty,})}}>Breakdown</Button>
                                         </Grid>
@@ -676,7 +779,7 @@ const Form = ({setSharedStateRef,sharedStateRef}) =>{
                                     <Grid container spacing={2} direction="row">
                                         <Grid xs={12} md={12} lg={12} >
                                             <TextField size='small' type='number' value={input?.firstPass?.totalPullOutQty} onChange={(e)=>handleOnChangeInput("firstPass.totalPullOutQty",e)} fullWidth label="Total Pull-out" variant="outlined" />
-                                            <Button size='small' variant="contained" sx={{mt:1.5}} color='primary' startIcon={<Save/>} onClick={()=>{setSharedStateRef.setPassType({...sharedStateRef.passType,name:'firstPassPullOut', firstDefect:inspections?.firstPass?.defectQty,
+                                            <Button size='small' variant="contained" sx={{mt:1.5}} color={sharedStateRef.passType?.name === 'firstPassPullOut' ? 'success' : 'primary'} startIcon={<Save/>} onClick={()=>{setSharedStateRef.setPassType({...sharedStateRef.passType,name:'firstPassPullOut', firstDefect:inspections?.firstPass?.defectQty,
                 firstPullOut:input?.firstPass?.totalPullOutQty,
                 secondPullOut:input?.secondPass?.totalPullOutQty,})}}>Breakdown</Button>
                                         </Grid>
@@ -718,7 +821,7 @@ const Form = ({setSharedStateRef,sharedStateRef}) =>{
                                     <Grid container spacing={2} direction="row">
                                         <Grid xs={12} md={12} lg={12} >
                                             <TextField type='number' size='small'value={input?.secondPass?.totalPullOutQty} onChange={(e)=>handleOnChangeInput("secondPass.totalPullOutQty",e)} fullWidth label="Total Pull-out" variant="outlined" />
-                                            <Button size='small' variant="contained" sx={{mt:1.5}} color='primary' startIcon={<Save/>}onClick={()=>{setSharedStateRef.setPassType({...sharedStateRef.passType,name:'secondPassPullOut', firstDefect:inspections?.firstPass?.defectQty,
+                                            <Button size='small' variant="contained" sx={{mt:1.5}} color={sharedStateRef?.passType?.name == 'secondPassPullOut' ? 'success' : 'primary'} startIcon={<Save/>}onClick={()=>{setSharedStateRef.setPassType({...sharedStateRef.passType,name:'secondPassPullOut', firstDefect:inspections?.firstPass?.defectQty,
                 firstPullOut:input?.firstPass?.totalPullOutQty,
                 secondPullOut:input?.secondPass?.totalPullOutQty,})}}>Breakdown</Button>
                                             
@@ -790,6 +893,28 @@ const Form = ({setSharedStateRef,sharedStateRef}) =>{
                                     </DialogContent>
                                     
                                     </Dialog>
+
+
+                                    {/* Dialog for delete row */}
+                                     <Dialog
+                                        open={openDeleteRowsModal}
+                                        onClose={handleCloseDeleteRowsModal}
+                                        aria-labelledby="alert-dialog-title"
+                                        aria-describedby="alert-dialog-description"
+                                        
+                                    >
+                                        <DialogTitle id="alert-dialog-title">
+                                        {`Changing (${prevDefectQty?.name}) value to 0, it will delete all Defects Details, Click Yes to confirm and dont forget to click Update Changes`}
+                                        </DialogTitle>
+                                       
+                                        <DialogActions>
+                                        <Button variant="contained" color="error" startIcon={<CancelPresentation/>} onClick={handleCancelRowsDelete}>Cancel</Button>
+                                        <Button variant="contained" color="info" startIcon={<DeleteForever/>} onClick={handleYesRowsDelete}>
+                                            YES
+                                        </Button>
+                                        </DialogActions>
+                                    </Dialog>
+                                    {/* Dialog for delete row */}
                                     <div>
                                         {!!snackbar && (
                                             <Snackbar

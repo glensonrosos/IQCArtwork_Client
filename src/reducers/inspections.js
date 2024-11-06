@@ -1,4 +1,5 @@
-import { CREATE_INSPECTION,GET_INSPECTIONS,GET_EXPORT_REPORT_LIST,GET_INSPECTIONS_BY_SEARCH,START_LOADING_HOME,END_LOADING_HOME,SET_MESSAGE_NULL,GET_INSPECTION_BY_ID, EDIT_INSPECTION} from "../constant/actionTypes";
+import { CREATE_INSPECTION,GET_INSPECTIONS,GET_EXPORT_REPORT_LIST,GET_INSPECTIONS_BY_SEARCH,START_LOADING_HOME,END_LOADING_HOME,SET_MESSAGE_NULL,GET_INSPECTION_BY_ID, 
+    EDIT_INSPECTION,GET_EXPORT_DEFECTS_REPORT,GET_EXPORT_SUM_REPORT,SET_CLEAR_STATES} from "../constant/actionTypes";
 
 const defaultState = {
     isLoading: false,
@@ -9,6 +10,8 @@ const defaultState = {
     message: null,
     inspectionsList:[],
     defectDataList:[],
+    exportSumReport:[],
+    exportDefectsReport:[],
 }
 
 
@@ -71,6 +74,8 @@ export default(state = defaultState,action) =>{
                 return{
                     ...state,
                     message: 'export list',
+                    exportSumReport:[],
+                    exportDefectsReport:[],
                     inspectionsList: action.payload?.inspectionsList,
                     defectDataList:  action.payload?.defectDataList,
                 }
@@ -79,7 +84,36 @@ export default(state = defaultState,action) =>{
                     ...state,
                     message: 'export no',
                 }
-           
+        case GET_EXPORT_SUM_REPORT:
+            if(action.payload?.message == 'export sum')
+                return{
+                    ...state,
+                    message: 'export sum',
+                    inspectionsList: [],
+                    defectDataList: [],
+                    exportDefectsReport:[],
+                    exportSumReport: action.payload?.exportSumReport,
+                }
+            else if(action.payload?.message == 'export no')
+                return{
+                    ...state,
+                    message: 'export no',
+                }
+        case GET_EXPORT_DEFECTS_REPORT:
+            if(action.payload?.message == 'export defects')
+                return{
+                    ...state,
+                    message: 'export defects',
+                    inspectionsList:[],
+                    defectDataList:[],
+                    exportSumReport:[],
+                    exportDefectsReport: action.payload?.exportDefectsReport,
+                }
+            else if(action.payload?.message == 'export no')
+                return{
+                    ...state,
+                    message: 'export no',
+                }   
         case START_LOADING_HOME:
             return{
                 ...state,
@@ -94,6 +128,19 @@ export default(state = defaultState,action) =>{
             return{
                 ...state,
                 message:null,
+            }
+        case SET_CLEAR_STATES:
+            return{
+                isLoading: false,
+                inspections:[],
+                currentPage:1,
+                numberOfPages:1,
+                total:1,
+                message: null,
+                inspectionsList:[],
+                defectDataList:[],
+                exportSumReport:[],
+                exportDefectsReport:[],
             }
         default:
             return state;

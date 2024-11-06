@@ -21,6 +21,9 @@ export const getInspectionsBySearch = (search) => API.get(`/inspections/search?i
 export const createInspection = (newInspection) => API.post(`/inspections`,newInspection);
 
 export const getExportReportList = (report) => API.post(`/inspections/getExportReportList`,report);
+export const getExportSumReport = (report) => API.post(`/inspections/getExportSumReport`,report);
+export const getExportDefectsReport = (report) => API.post(`/inspections/getExportDefectsReport`,report);
+
 export const editInspection = (id,editedInspection) => API.patch(`/inspections/${id}/editInspection`,editedInspection);
 
 

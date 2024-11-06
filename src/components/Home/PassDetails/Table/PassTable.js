@@ -74,6 +74,7 @@ const PassTable = ({setSharedStateRef,sharedStateRef}) => {
   useEffect(()=>{
     if(!defectDataLoading){
       setRows(defectDatas);
+     console.log(`defectDatas => ${defectDatas}`);
     }
   },[defectDatas,defectDataLoading])
 
