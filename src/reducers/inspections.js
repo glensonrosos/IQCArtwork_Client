@@ -1,5 +1,5 @@
 import { CREATE_INSPECTION,GET_INSPECTIONS,GET_EXPORT_REPORT_LIST,GET_INSPECTIONS_BY_SEARCH,START_LOADING_HOME,END_LOADING_HOME,SET_MESSAGE_NULL,GET_INSPECTION_BY_ID, 
-    EDIT_INSPECTION,GET_EXPORT_DEFECTS_REPORT,GET_EXPORT_SUM_REPORT,SET_CLEAR_STATES} from "../constant/actionTypes";
+    EDIT_INSPECTION,GET_EXPORT_DEFECTS_REPORT,GET_EXPORT_SUM_REPORT,GET_EXPORT_SUPPLIERS_SUM_REPORT,GET_EXPORT_ITEMS_SUM_REPORT,SET_CLEAR_STATES} from "../constant/actionTypes";
 
 const defaultState = {
     isLoading: false,
@@ -11,7 +11,10 @@ const defaultState = {
     inspectionsList:[],
     defectDataList:[],
     exportSumReport:[],
+    exportSuppliersSumReport:[],
+    exportItemsSumReport:[],
     exportDefectsReport:[],
+    affectedRowsInspection:[]
 }
 
 
@@ -76,6 +79,8 @@ export default(state = defaultState,action) =>{
                     message: 'export list',
                     exportSumReport:[],
                     exportDefectsReport:[],
+                    exportSuppliersSumReport:[],
+                    exportItemsSumReport:[],
                     inspectionsList: action.payload?.inspectionsList,
                     defectDataList:  action.payload?.defectDataList,
                 }
@@ -92,7 +97,45 @@ export default(state = defaultState,action) =>{
                     inspectionsList: [],
                     defectDataList: [],
                     exportDefectsReport:[],
+                    exportSuppliersSumReport:[],
+                    exportItemsSumReport:[],
                     exportSumReport: action.payload?.exportSumReport,
+                }
+            else if(action.payload?.message == 'export no')
+                return{
+                    ...state,
+                    message: 'export no',
+                }
+        case GET_EXPORT_SUPPLIERS_SUM_REPORT:
+            if(action.payload?.message == 'export suppliers sum')
+                return{
+                    ...state,
+                    message: 'export suppliers sum',
+                    inspectionsList: [],
+                    defectDataList: [],
+                    exportDefectsReport:[],
+                    exportSumReport:[],
+                    exportItemsSumReport:[],
+                    exportSuppliersSumReport:action.payload?.exportSuppliersSumReport,
+                    affectedRowsInspection: action.payload?.affectedRowsInspection,
+                }
+            else if(action.payload?.message == 'export no')
+                return{
+                    ...state,
+                    message: 'export no',
+                }
+        case GET_EXPORT_ITEMS_SUM_REPORT:
+            if(action.payload?.message == 'export items sum')
+                return{
+                    ...state,
+                    message: 'export items sum',
+                    inspectionsList: [],
+                    defectDataList: [],
+                    exportDefectsReport:[],
+                    exportSumReport:[],
+                    exportSuppliersSumReport:[],
+                    exportItemsSumReport:action.payload?.exportItemsSumReport,
+                    affectedRowsInspection: action.payload?.affectedRowsInspection,
                 }
             else if(action.payload?.message == 'export no')
                 return{
@@ -107,7 +150,10 @@ export default(state = defaultState,action) =>{
                     inspectionsList:[],
                     defectDataList:[],
                     exportSumReport:[],
+                    exportSuppliersSumReport:[],
+                    exportItemsSumReport:[],
                     exportDefectsReport: action.payload?.exportDefectsReport,
+                    affectedRowsInspection: action.payload?.affectedRowsInspection,
                 }
             else if(action.payload?.message == 'export no')
                 return{
@@ -141,6 +187,8 @@ export default(state = defaultState,action) =>{
                 defectDataList:[],
                 exportSumReport:[],
                 exportDefectsReport:[],
+                exportSuppliersSumReport:[],
+                exportItemsSumReport:[],
             }
         default:
             return state;

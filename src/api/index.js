@@ -23,6 +23,8 @@ export const createInspection = (newInspection) => API.post(`/inspections`,newIn
 export const getExportReportList = (report) => API.post(`/inspections/getExportReportList`,report);
 export const getExportSumReport = (report) => API.post(`/inspections/getExportSumReport`,report);
 export const getExportDefectsReport = (report) => API.post(`/inspections/getExportDefectsReport`,report);
+export const getExportSuppliersSummaryReport = (report) => API.post(`/inspections/getExportSuppliersSumReport`,report);
+export const getExportItemsSummaryReport = (report) => API.post(`/inspections/getExportItemsSumReport`,report);
 
 export const editInspection = (id,editedInspection) => API.patch(`/inspections/${id}/editInspection`,editedInspection);
 

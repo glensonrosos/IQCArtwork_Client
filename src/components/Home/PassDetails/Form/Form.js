@@ -71,6 +71,7 @@ const Form = ({setSharedStateRef,sharedStateRef}) =>{
         item:null,
         itemCode:'',
         itemDescription:'',
+        color:'',
         deliveryQty:'',
         totalMinWork:{
             start:null,
@@ -114,7 +115,7 @@ const Form = ({setSharedStateRef,sharedStateRef}) =>{
     },[input.firstPass,input.secondPass,input.deliveryQty]);
 
    useEffect(()=>{
-        if(buttonQueryId !== 0){
+        if(buttonQueryId){
             dispatch(getInspectionById(buttonQueryId || ''));
         }
         dispatch(getSuppliers());
@@ -123,7 +124,7 @@ const Form = ({setSharedStateRef,sharedStateRef}) =>{
     },[buttonQueryId,dispatch]);
 
     useEffect(()=>{
-        if(!inspectionLoading){
+        if(!inspectionLoading && queryId){
            if(inspectionMessage === 'edit duplicate'){
                 setSnackbar({ children: `Duplicate entry cannot update`, severity: 'error' });
                 setInput(prevInputState);
@@ -144,6 +145,7 @@ const Form = ({setSharedStateRef,sharedStateRef}) =>{
                 })
 
                 // update checkEmptyDefect
+                console.log(`queryId 1 => ${queryId}`)
                 dispatch(checkEmptyDefect({ inspectionId:queryId}));
 
                 setSnackbar({ children: `Successfully updated`, severity: 'success' });
@@ -151,7 +153,7 @@ const Form = ({setSharedStateRef,sharedStateRef}) =>{
             else if(inspectionMessage === 'no found')
                 navigate(`/inspection-list`);   // redirect if no inspection id found via link search
         }
-    },[inspectionLoading,inspections,inspectionMessage]);
+    },[inspectionLoading,inspections,inspectionMessage,queryId]);
 
     useEffect(()=>{
         if(prevInputState.buyer !== null ){
@@ -174,8 +176,8 @@ const Form = ({setSharedStateRef,sharedStateRef}) =>{
             setInput({
                 ...input,
                 totalMinWork:{
-                    start:moment().set({ hour: 6, minute: 0 }),
-                    end:moment().set({ hour: 8, minute: 0 })
+                    start:moment().set({ hour: 6, minute: 0, second: 0, millisecond: 0}),
+                    end:moment().set({ hour: 8, minute: 0, second: 0, millisecond: 0 })
                 },
             })
          }
@@ -183,7 +185,7 @@ const Form = ({setSharedStateRef,sharedStateRef}) =>{
     },[materials,buyers,suppliers]);
 
     useEffect(() =>{
-        if(inspectionMessage === 'found' && !inspectionLoading && inspections !== null && !buyerLoading && inputBuyer) {
+        if(inspectionMessage === 'found' && !inspectionLoading && inspections !== null && !buyerLoading && inputBuyer && queryId) {
             
             const initialInput = {
                 supplier:inspections.supplier, //
@@ -193,10 +195,11 @@ const Form = ({setSharedStateRef,sharedStateRef}) =>{
                 item:inspections.item,//
                 itemCode:inspections.item.itemCode, //
                 itemDescription:inspections.item.itemDescription, //
+                color:inspections.item.color,
                 deliveryQty:inspections.deliveryQty,
                 totalMinWork:{
-                    start: moment(inspections.totalMinWork.start),
-                    end:moment(inspections.totalMinWork.end)
+                    start: moment(inspections.totalMinWork.start, "H:mm"),
+                    end:moment(inspections.totalMinWork.end, "H:mm")
                 },
                 weight:inspections.weight,
                 remarks:inspections.remarks,
@@ -217,14 +220,16 @@ const Form = ({setSharedStateRef,sharedStateRef}) =>{
             setPrevInputState(initialInput);
 
             //check for delete rows if defect set to 0
+            console.log(`queryId 2 => ${queryId}`)
             dispatch(checkEmptyDefect({ inspectionId:queryId}));
         }
         if(!inspectionLoading){
             if(inspectionMessage === 'duplicate'){
-                setSnackbar({ children: `Duplicate Entry (Date and Item Code) `, severity: 'error' });
+                setSnackbar({ children: `Duplicated Entry`, severity: 'error' });
             }else if(inspectionMessage === 'good'){
 
                  // update checkEmptyDefect
+                 console.log(` inspections[0]?._id 3 => ${inspections[0]?._id}`)
                  dispatch(checkEmptyDefect({ inspectionId:inspections[0]?._id}));
 
                 setSnackbar({ children: `Successfully Added`, severity: 'success' });
@@ -233,7 +238,7 @@ const Form = ({setSharedStateRef,sharedStateRef}) =>{
             }
         }
         dispatch(setInspectionMessageNull());
-    },[inspectionLoading,inputBuyer,buyerLoading]);
+    },[inspectionLoading,inputBuyer,buyerLoading,queryId]);
 
     const [snackbar, setSnackbar] = useState(null);
     const handleCloseSnackbar = () => setSnackbar(null);
@@ -316,19 +321,19 @@ const Form = ({setSharedStateRef,sharedStateRef}) =>{
         });
     }
 
-    useEffect(()=>{
+    // useEffect(()=>{
        
-        if(!inspectionLoading){
-            if(parseInt(input?.firstPass?.defectQty) === 0 && parseInt(counting?.firstDefectRows) === 1){
-                handleOpenDeleteRowsModal(true);
-            }else if(parseInt(input?.firstPass?.totalPullOutQty) === 0 && parseInt(counting?.firstPullOutRows) === 1){
-                handleOpenDeleteRowsModal(true);
-            }else if(parseInt(input?.secondPass?.totalPullOutQty) === 0 && parseInt(counting?.secondPullOutRows) === 1){
-                handleOpenDeleteRowsModal(true);
-            }
-        }
+    //     if(!inspectionLoading){
+    //         if(parseInt(input?.firstPass?.defectQty) === 0 && parseInt(counting?.firstDefectRows) === 1){
+    //             handleOpenDeleteRowsModal(true);
+    //         }else if(parseInt(input?.firstPass?.totalPullOutQty) === 0 && parseInt(counting?.firstPullOutRows) === 1){
+    //             handleOpenDeleteRowsModal(true);
+    //         }else if(parseInt(input?.secondPass?.totalPullOutQty) === 0 && parseInt(counting?.secondPullOutRows) === 1){
+    //             handleOpenDeleteRowsModal(true);
+    //         }
+    //     }
 
-    },[input.firstPass.defectQty,input.firstPass.totalPullOutQty,input.secondPass.totalPullOutQty,inspectionLoading]);
+    // },[input.firstPass.defectQty,input.firstPass.totalPullOutQty,input.secondPass.totalPullOutQty,inspectionLoading]);
 
     const onSaveChanges = async () =>{
         let flag = true;
@@ -339,7 +344,7 @@ const Form = ({setSharedStateRef,sharedStateRef}) =>{
             flag = false;
         }
   
-        const itemCodeStr = /^[a-zA-Z0-9-]{1,30}$/;
+        const itemCodeStr = /^[a-zA-Z0-9-.]{1,30}$/;
         if(!itemCodeStr.test(input.itemCode)) {
             setSnackbar({ children: `ItemCode inputed is invalid, `, severity: 'error' });
             flag = false;
@@ -398,10 +403,10 @@ const Form = ({setSharedStateRef,sharedStateRef}) =>{
             flag = false;
         }
 
-        if (moment(input.totalMinWork.start).isAfter(moment(input.totalMinWork.end))) {
-            setSnackbar({ children: 'Time start must not be beyond end time', severity: 'error' });
-            flag = false;
-        }
+        // if (moment(input.totalMinWork.start).isAfter(moment(input.totalMinWork.end))) {
+        //     setSnackbar({ children: 'Time start must not be beyond end time', severity: 'error' });
+        //     flag = false;
+        // }
 
         let closure = null;
         if(parseInt(input.unfinished) == 0){
@@ -412,12 +417,20 @@ const Form = ({setSharedStateRef,sharedStateRef}) =>{
 
         const newUser = `${user?.result?.firstname} ${user?.result?.lastname}`;
         if(flag && buttonQueryId === ''){
-            await dispatch(createInspection({...input,editedBy:newUser,dateClosure: closure}));
+
+            await dispatch(createInspection({...input,
+                totalMinWork:{
+                    start:moment(input.totalMinWork.start).format('h:mm'),
+                    end:moment(input.totalMinWork.end).format('h:mm')
+                },editedBy:newUser,dateClosure: closure}));
         }
         else if(flag && buttonQueryId !== ''){
-            await dispatch(editInspection(queryId,{...input,editedBy:newUser,dateClosure: closure}));
+            await dispatch(editInspection(queryId,{...input,
+                totalMinWork:{
+                    start:moment(input.totalMinWork.start).format('h:mm'),
+                    end:moment(input.totalMinWork.end).format('h:mm')
+                },editedBy:newUser,dateClosure: closure}));
         }
-
     };
 
     // USER
@@ -461,51 +474,51 @@ const Form = ({setSharedStateRef,sharedStateRef}) =>{
         setOpenItemModal(false);
     };
 
-    const [openDeleteRowsModal, setOpenDeleteRowsModal] = useState(false);
-    const handleOpenDeleteRowsModal = () => {
-        setOpenDeleteRowsModal(true);
-    };
-    const handleCloseDeleteRowsModal = (event, reason) => {
-        if (reason === 'backdropClick' || reason === 'escapeKeyDown') {
-        return;
-        }
-        setOpenDeleteRowsModal(false);
-    };
+    // const [openDeleteRowsModal, setOpenDeleteRowsModal] = useState(false);
+    // const handleOpenDeleteRowsModal = () => {
+    //     setOpenDeleteRowsModal(true);
+    // };
+    // const handleCloseDeleteRowsModal = (event, reason) => {
+    //     if (reason === 'backdropClick' || reason === 'escapeKeyDown') {
+    //     return;
+    //     }
+    //     setOpenDeleteRowsModal(false);
+    // };
 
-    const handleCancelRowsDelete = () =>{
+    // const handleCancelRowsDelete = () =>{
 
-        if(prevDefectQty?.firstPass?.defectQty){
-            setInput({...input,
-                firstPass: prevInputState.firstPass,
-                secondPass: prevInputState.secondPass
-            });
-        }else if(prevDefectQty?.firstPass?.totalPullOutQty){
-            setInput({...input,
-                firstPass: prevInputState.firstPass,
-                secondPass: prevInputState.secondPass
-            });
-        }else if(prevDefectQty?.secondPass?.totalPullOutQty){
-            setInput({...input,
-                firstPass: prevInputState.firstPass,
-                secondPass: prevInputState.secondPass
-            });
-        }
+    //     if(prevDefectQty?.firstPass?.defectQty){
+    //         setInput({...input,
+    //             firstPass: prevInputState.firstPass,
+    //             secondPass: prevInputState.secondPass
+    //         });
+    //     }else if(prevDefectQty?.firstPass?.totalPullOutQty){
+    //         setInput({...input,
+    //             firstPass: prevInputState.firstPass,
+    //             secondPass: prevInputState.secondPass
+    //         });
+    //     }else if(prevDefectQty?.secondPass?.totalPullOutQty){
+    //         setInput({...input,
+    //             firstPass: prevInputState.firstPass,
+    //             secondPass: prevInputState.secondPass
+    //         });
+    //     }
 
-        handleCloseDeleteRowsModal();
-    }
+    //     handleCloseDeleteRowsModal();
+    // }
 
-    const handleYesRowsDelete = async ()  =>{
-        const newUser = `${user?.result?.firstname} ${user?.result?.lastname}`;
+    // const handleYesRowsDelete = async ()  =>{
+    //     const newUser = `${user?.result?.firstname} ${user?.result?.lastname}`;
 
-        //alert(JSON.stringify({ inspectionId:queryId,passType:prevDefectQty.passType,defectDetails:[],editedBy:newUser}))
+    //     //alert(JSON.stringify({ inspectionId:queryId,passType:prevDefectQty.passType,defectDetails:[],editedBy:newUser}))
 
-       await dispatch(createDefectData({ inspectionId:queryId,passType:prevDefectQty.passType,defectDetails:[],editedBy:newUser}));
-       //alert(prevDefectQty.passType);
-       await dispatch(getDefectDatas({inspectionId:queryId,passType:prevDefectQty.passType}));
+    //    await dispatch(createDefectData({ inspectionId:queryId,passType:prevDefectQty.passType,defectDetails:[],editedBy:newUser}));
+    //    //alert(prevDefectQty.passType);
+    //    await dispatch(getDefectDatas({inspectionId:queryId,passType:prevDefectQty.passType}));
         
-        handleCloseDeleteRowsModal();
+    //     handleCloseDeleteRowsModal();
 
-    }
+    // }
 
     const VirtuosoTableComponents = {
         Scroller: React.forwardRef((props, ref) => (
@@ -625,6 +638,59 @@ const Form = ({setSharedStateRef,sharedStateRef}) =>{
 
     },[itemMessage,items]);
 
+    const [isDialogOpenFirstDefect, setDialogOpenFirstDefect] = useState(false);
+    const handleOpenDialogFirstDefect = () => setDialogOpenFirstDefect(true);
+    const handleCloseDialogFirstDefect = () => setDialogOpenFirstDefect(false);
+
+    const proceedWithChangeFirstDefect = () => {
+        setSharedStateRef.setPassType({
+            ...sharedStateRef.passType,
+            name: 'firstPassDefect',
+            firstDefect: inspections?.firstPass?.defectQty,
+            firstPullOut: input?.firstPass?.totalPullOutQty,
+            secondPullOut: input?.secondPass?.totalPullOutQty,
+        });
+        setDialogOpenFirstDefect(false);
+    };
+    const changeBreakdownFirstPassDefect = () => {
+        handleOpenDialogFirstDefect(); // Open the dialog
+    };
+
+    const [isDialogOpenFirstPullOut, setDialogOpenFirstPullOut] = useState(false);
+    const handleOpenDialogFirstPullOut= () => setDialogOpenFirstPullOut(true);
+    const handleCloseDialogFirstPullOut = () => setDialogOpenFirstPullOut(false);
+
+    const proceedWithChangeFirstPullOut = () => {
+        setSharedStateRef.setPassType({
+            ...sharedStateRef.passType,name:'firstPassPullOut', 
+            firstDefect:inspections?.firstPass?.defectQty,
+            firstPullOut:input?.firstPass?.totalPullOutQty,
+            secondPullOut:input?.secondPass?.totalPullOutQty,
+        });
+        setDialogOpenFirstPullOut(false);
+    };
+    const changeBreakdownFirstPullOut = () => {
+        handleOpenDialogFirstPullOut(); // Open the dialog
+    };
+
+    const [isDialogOpenSecondPullOut, setDialogOpenSecondPullOut] = useState(false);
+    const handleOpenDialogSecondPullOut= () => setDialogOpenSecondPullOut(true);
+    const handleCloseDialogSecondPullOut = () => setDialogOpenSecondPullOut(false);
+
+    const proceedWithChangeSecondPullOut = () => {
+        setSharedStateRef.setPassType({
+            ...sharedStateRef.passType,name:'secondPassPullOut', 
+            firstDefect:inspections?.firstPass?.defectQty,
+            firstPullOut:input?.firstPass?.totalPullOutQty,
+            secondPullOut:input?.secondPass?.totalPullOutQty,
+        });
+        setDialogOpenSecondPullOut(false);
+    };
+    const changeBreakdownSecondPullOut = () => {
+        handleOpenDialogSecondPullOut(); // Open the dialog
+    };
+
+
     // DIALOG ITEM END
 
     
@@ -659,7 +725,17 @@ const Form = ({setSharedStateRef,sharedStateRef}) =>{
                                   <Grid container spacing={1} direction="row" justifyContent="space-between">
                                        
                                        <Grid xs={8} md={8} lg={8}>
-                                            <TextField size='small' disabled value={input.itemCode}  label="Item Code" variant="outlined" />
+                                            <Tooltip  
+                                            title={
+                                                    <Typography color="inherit">
+                                                    <span style={{color:'#fff'}}>
+                                                        {input?.color}
+                                                    </span>
+                                                    </Typography>
+                                                } placement="top"
+                                             arrow>
+                                                <TextField size='small' disabled value={input.itemCode}  label="Item Code" variant="outlined" />
+                                            </Tooltip>
                                         </Grid>
                                         <Grid xs={2} md={2} lg={2}>
                                             <IconButton onClick={handleOpenItemModal} aria-label="delete" variant="contained" size='small' color='error' sx={{border:1,mt:0.5}}>
@@ -670,8 +746,6 @@ const Form = ({setSharedStateRef,sharedStateRef}) =>{
                                     </Grid>
                                     </Box>
                                   <TextField size='small' value={input.itemDescription} disabled  multiline rows={2} fullWidth label="Item Description" variant="outlined" />
-
-                                  
                                   <TextField size='small'value={input.weight} onChange={(e)=>handleOnChangeInput("weight",e)} fullWidth label="Weight" variant="outlined" />
                             </Box>
                         </Grid>
@@ -768,9 +842,7 @@ const Form = ({setSharedStateRef,sharedStateRef}) =>{
                                     <Grid container spacing={2} direction="row">
                                         <Grid xs={12} md={12} lg={12} >
                                             <TextField size='small' type='number' value={input?.firstPass?.defectQty} onChange={(e)=>handleOnChangeInput("firstPass.defectQty",e)} fullWidth label="Defect Qty" variant="outlined" />
-                                            <Button size='small' variant="contained" sx={{mt:1.5}} color={sharedStateRef.passType?.name === 'firstPassDefect' ? 'success' : 'primary'} startIcon={<Save/>} onClick={()=>{setSharedStateRef.setPassType({...sharedStateRef.passType,name:'firstPassDefect', firstDefect:inspections?.firstPass?.defectQty,
-                firstPullOut:input?.firstPass?.totalPullOutQty,
-                secondPullOut:input?.secondPass?.totalPullOutQty,})}}>Breakdown</Button>
+                                            <Button size='small' variant="contained" sx={{mt:1.5}} color={sharedStateRef.passType?.name === 'firstPassDefect' ? 'success' : 'primary'} startIcon={<Save/>} onClick={changeBreakdownFirstPassDefect}>Breakdown</Button>
                                         </Grid>
                                     </Grid>
                                     
@@ -779,9 +851,7 @@ const Form = ({setSharedStateRef,sharedStateRef}) =>{
                                     <Grid container spacing={2} direction="row">
                                         <Grid xs={12} md={12} lg={12} >
                                             <TextField size='small' type='number' value={input?.firstPass?.totalPullOutQty} onChange={(e)=>handleOnChangeInput("firstPass.totalPullOutQty",e)} fullWidth label="Total Pull-out" variant="outlined" />
-                                            <Button size='small' variant="contained" sx={{mt:1.5}} color={sharedStateRef.passType?.name === 'firstPassPullOut' ? 'success' : 'primary'} startIcon={<Save/>} onClick={()=>{setSharedStateRef.setPassType({...sharedStateRef.passType,name:'firstPassPullOut', firstDefect:inspections?.firstPass?.defectQty,
-                firstPullOut:input?.firstPass?.totalPullOutQty,
-                secondPullOut:input?.secondPass?.totalPullOutQty,})}}>Breakdown</Button>
+                                            <Button size='small' variant="contained" sx={{mt:1.5}} color={sharedStateRef.passType?.name === 'firstPassPullOut' ? 'success' : 'primary'} startIcon={<Save/>} onClick={changeBreakdownFirstPullOut}>Breakdown</Button>
                                         </Grid>
                                     </Grid>
                                     </Box>
@@ -821,9 +891,7 @@ const Form = ({setSharedStateRef,sharedStateRef}) =>{
                                     <Grid container spacing={2} direction="row">
                                         <Grid xs={12} md={12} lg={12} >
                                             <TextField type='number' size='small'value={input?.secondPass?.totalPullOutQty} onChange={(e)=>handleOnChangeInput("secondPass.totalPullOutQty",e)} fullWidth label="Total Pull-out" variant="outlined" />
-                                            <Button size='small' variant="contained" sx={{mt:1.5}} color={sharedStateRef?.passType?.name == 'secondPassPullOut' ? 'success' : 'primary'} startIcon={<Save/>}onClick={()=>{setSharedStateRef.setPassType({...sharedStateRef.passType,name:'secondPassPullOut', firstDefect:inspections?.firstPass?.defectQty,
-                firstPullOut:input?.firstPass?.totalPullOutQty,
-                secondPullOut:input?.secondPass?.totalPullOutQty,})}}>Breakdown</Button>
+                                            <Button size='small' variant="contained" sx={{mt:1.5}} color={sharedStateRef?.passType?.name == 'secondPassPullOut' ? 'success' : 'primary'} startIcon={<Save/>}onClick={changeBreakdownSecondPullOut}>Breakdown</Button>
                                             
                                         </Grid>
                                     </Grid>
@@ -894,9 +962,48 @@ const Form = ({setSharedStateRef,sharedStateRef}) =>{
                                     
                                     </Dialog>
 
+                                    <Dialog open={isDialogOpenFirstDefect} onClose={handleCloseDialogFirstDefect}>
+                                        <DialogTitle>Dont forget to click Save Changes</DialogTitle>
+                                        <DialogContent>
+                                            <DialogContentText>
+                                                You are leaving {sharedStateRef.passText}. Are you sure you want to continue?
+                                            </DialogContentText>
+                                        </DialogContent>
+                                        <DialogActions>
+                                            <Button onClick={handleCloseDialogFirstDefect} variant="contained" color="primary">No</Button>
+                                            <Button onClick={proceedWithChangeFirstDefect} variant="contained" color="warning" autoFocus>Yes</Button>
+                                        </DialogActions>
+                                    </Dialog>
+
+                                    <Dialog open={isDialogOpenFirstPullOut} onClose={handleCloseDialogFirstPullOut}>
+                                        <DialogTitle>Dont forget to click Save Changes</DialogTitle>
+                                        <DialogContent>
+                                            <DialogContentText>
+                                            You are leaving {sharedStateRef.passText}. Are you sure you want to continue?
+                                            </DialogContentText>
+                                        </DialogContent>
+                                        <DialogActions>
+                                            <Button onClick={handleCloseDialogFirstPullOut} variant="contained" color="primary">No</Button>
+                                            <Button onClick={proceedWithChangeFirstPullOut} variant="contained" color="warning" autoFocus>Yes</Button>
+                                        </DialogActions>
+                                    </Dialog>
+
+                                    <Dialog open={isDialogOpenSecondPullOut} onClose={handleCloseDialogSecondPullOut}>
+                                        <DialogTitle>Dont forget to click Save Changes</DialogTitle>
+                                        <DialogContent>
+                                            <DialogContentText>
+                                            You are leaving {sharedStateRef.passText}. Are you sure you want to continue?
+                                            </DialogContentText>
+                                        </DialogContent>
+                                        <DialogActions>
+                                            <Button onClick={handleCloseDialogSecondPullOut} variant="contained" color="primary">No</Button>
+                                            <Button onClick={proceedWithChangeSecondPullOut} variant="contained" color="warning" autoFocus>Yes</Button>
+                                        </DialogActions>
+                                    </Dialog>
+
 
                                     {/* Dialog for delete row */}
-                                     <Dialog
+                                     {/* <Dialog
                                         open={openDeleteRowsModal}
                                         onClose={handleCloseDeleteRowsModal}
                                         aria-labelledby="alert-dialog-title"
@@ -913,7 +1020,7 @@ const Form = ({setSharedStateRef,sharedStateRef}) =>{
                                             YES
                                         </Button>
                                         </DialogActions>
-                                    </Dialog>
+                                    </Dialog> */}
                                     {/* Dialog for delete row */}
                                     <div>
                                         {!!snackbar && (

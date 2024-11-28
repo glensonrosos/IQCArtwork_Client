@@ -1,6 +1,6 @@
 import * as api from '../api';
 import {CREATE_INSPECTION,START_LOADING_HOME,EDIT_INSPECTION,END_LOADING_HOME,SET_MESSAGE_NULL,SET_CLEAR_STATES,GET_INSPECTION_BY_ID,GET_INSPECTIONS_BY_SEARCH, GET_INSPECTIONS, 
-    GET_EXPORT_REPORT_LIST,GET_EXPORT_SUM_REPORT,GET_EXPORT_DEFECTS_REPORT} from '../constant/actionTypes';
+    GET_EXPORT_REPORT_LIST,GET_EXPORT_SUM_REPORT,GET_EXPORT_DEFECTS_REPORT,GET_EXPORT_SUPPLIERS_SUM_REPORT,GET_EXPORT_ITEMS_SUM_REPORT} from '../constant/actionTypes';
 
 
 export const getInspections = (page) => async (dispatch) =>{
@@ -67,6 +67,36 @@ export const getExportSumReport = (report) => async (dispatch) =>{
         console.log(error);
     }
 }
+
+export const getExportSuppliersSummaryReport = (report) => async (dispatch) =>{
+    try{
+        dispatch({type: START_LOADING_HOME});
+        const { data } = await api.getExportSuppliersSummaryReport(report);
+
+        dispatch({type: GET_EXPORT_SUPPLIERS_SUM_REPORT, payload: data});
+
+        dispatch({type: END_LOADING_HOME});
+
+    }catch(error){
+        console.log(error);
+    }
+}
+
+export const getExportItemsSummaryReport = (report) => async (dispatch) =>{
+    try{
+        dispatch({type: START_LOADING_HOME});
+        const { data } = await api.getExportItemsSummaryReport(report);
+
+        dispatch({type: GET_EXPORT_ITEMS_SUM_REPORT, payload: data});
+
+        dispatch({type: END_LOADING_HOME});
+
+    }catch(error){
+        console.log(error);
+    }
+}
+
+
 
 export const getExportDefectsReport = (report) => async (dispatch) =>{
     try{

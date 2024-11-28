@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect,useRef } from 'react';
 import Paper from '@mui/material/Paper';
-import { DataGrid } from '@mui/x-data-grid';
+import { DataGrid,useGridApiRef } from '@mui/x-data-grid';
 import { Box, Button, IconButton, Autocomplete, TextField,CircularProgress,Backdrop, Tooltip,Typography,Snackbar,Alert } from '@mui/material';
 import Grid from '@mui/material/Unstable_Grid2';
 import { Add, Delete, Save } from '@mui/icons-material';
@@ -25,6 +25,7 @@ const PassTable = ({setSharedStateRef,sharedStateRef}) => {
 
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const apiRef = useGridApiRef();
 
   const query = useQuery();
   const queryId = query.get('id') || null;
@@ -42,6 +43,8 @@ const PassTable = ({setSharedStateRef,sharedStateRef}) => {
 
   sharedStateRef.passType = passType;
   setSharedStateRef.setPassType = setPassType;
+
+  sharedStateRef.passText = passText.text || '';
 
   const [rows, setRows] = useState([]);
   const [majorQtyVal, setMajorQtyVal] = useState(0);
@@ -90,13 +93,20 @@ const PassTable = ({setSharedStateRef,sharedStateRef}) => {
 
   const RenderDefect = (newRow) => {
     const [value, setValue] = useState(newRow?.defect || null);
-
+  
     return (
       <Autocomplete
         disablePortal
+        autoFocus
         id="combo-box-defect"
         options={inputDefect}
+        autoHighlight
         clearOnEscape
+        filterOptions={(options, state) =>
+          options.filter((option) =>
+            option.name.toLowerCase().includes(state.inputValue.toLowerCase())
+          )
+        } // Custom filter to allow partial matches
         onChange={(event, newValue) => {
           const updatedRows = rows.map((row) =>
             row.id === newRow.id ? { ...row, defect: newValue || null } : row
@@ -104,7 +114,21 @@ const PassTable = ({setSharedStateRef,sharedStateRef}) => {
           setRows(updatedRows);
           setValue(newValue);
         }}
+        onKeyDown={(e)=>{
+          if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            e.stopPropagation();
+          }
+        }}
         getOptionLabel={(option) => option.name || ''}
+        inputValue={value?.name || ''}
+        onInputChange={(event, newInputValue) => {
+          if (event) {
+            event.stopPropagation(); // Prevent unintended events
+          }
+          setValue((prev) =>
+            prev?.name !== newInputValue ? { ...prev, name: newInputValue } : prev
+          );
+        }}
         value={value}
         size="small"
         fullWidth
@@ -114,6 +138,11 @@ const PassTable = ({setSharedStateRef,sharedStateRef}) => {
             InputProps={{
               ...params.InputProps,
               sx: { fontSize: 12 },
+              onKeyDown: (e) => {
+                if (e.key === ' ') {
+                  e.stopPropagation(); // Prevent spacebar from triggering unintended focus
+                }
+              },
             }}
             InputLabelProps={{
               sx: { fontSize: 12 },
@@ -123,14 +152,17 @@ const PassTable = ({setSharedStateRef,sharedStateRef}) => {
       />
     );
   };
+  
+  
 
   const RenderArea = (newRow) => {
     const [value, setValue] = useState(newRow?.area || null);
-
+  
     return (
       <Autocomplete
         disablePortal
         id="combo-box-area"
+        autoHighlight
         options={inputArea}
         clearOnEscape
         onChange={(event, newValue) => {
@@ -140,16 +172,36 @@ const PassTable = ({setSharedStateRef,sharedStateRef}) => {
           setRows(updatedRows);
           setValue(newValue);
         }}
+       
         getOptionLabel={(option) => option.name || ''}
         value={value}
         size="small"
         fullWidth
+        onKeyDown={(event) => {
+          if (event.key === 'Tab') {
+            event.preventDefault(); // Prevent default Tab behavior
+            const gridApi = apiRef.current; // Assuming `apiRef` is a reference to the DataGrid API
+            gridApi.setCellFocus(newRow.id, 'majorQty'); // Focus on the next cell (majorQty)
+            gridApi.startCellEditMode({
+              id: newRow.id,
+              field: 'majorQty',
+            });
+          }
+          if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+            event.stopPropagation();
+          }
+        }}
         renderInput={(params) => (
           <TextField
             {...params}
             InputProps={{
               ...params.InputProps,
               sx: { fontSize: 12 },
+              onKeyDown: (e) => {
+                if (e.key === ' ') {
+                  e.stopPropagation(); // Prevent spacebar from triggering unintended focus
+                }
+              },
             }}
             InputLabelProps={{
               sx: { fontSize: 12 },
@@ -159,13 +211,23 @@ const PassTable = ({setSharedStateRef,sharedStateRef}) => {
       />
     );
   };
+  
+
 
   const onDeleteRow = (id) => {
+    // Check if the row with the given id exists in the current rows
+    const rowExists = rows.some((row) => row.id === id);
+  
+    if (!rowExists) {
+      console.warn(`Row with id ${id} not found`); // Optional: Log a warning for debugging
+      return; // Exit the function without updating the state
+    }
+  
+    // Filter out the row with the given id and update the state
     const updatedRows = rows.filter((row) => row.id !== id);
     setRows(updatedRows);
-   // setSnackbar({ children: 'Row deleted successfully', severity: 'success' });
   };
-
+  
   const onAddRow = () => {
 
     let flag = true;
@@ -188,25 +250,33 @@ const PassTable = ({setSharedStateRef,sharedStateRef}) => {
 
 
     if(flag){
-        // Calculate the new ID based on the max existing row ID
-        const maxId = rows.length > 0 ? Math.max(...rows.map((row) => row.id)) : 0;
+       
+      setRows((prevRows) => {
+        const maxId = prevRows.length > 0 ? Math.max(...prevRows.map((row) => row.id)) : 0;
         const newRow = {
           id: maxId + 1,
           defect: null,
           area: null,
-          majorQty: 0,
+          majorQty: 1,
           numericData: '',
         };
-        setRows((prevRows) => [...prevRows, newRow]);
-        //setSnackbar({ children: 'Row added successfully', severity: 'success' });
+        return [...prevRows, newRow];
+      });
+        
     }  
 
   };
 
   const RenderDelete = (rowSelected) => {
-    return (
+    const rowExists = rows.some((row) => row.id === rowSelected.id);
+  
+    // Disable the delete button if the row doesn't exist
+    return rowExists ? (
       <IconButton
-        onClick={() => onDeleteRow(rowSelected.id)}
+        onClick={() => {
+          // Prevent further clicks until deletion is handled
+          if (rowExists) onDeleteRow(rowSelected.id);
+        }}
         aria-label="delete"
         variant="contained"
         size="small"
@@ -215,13 +285,13 @@ const PassTable = ({setSharedStateRef,sharedStateRef}) => {
       >
         <Delete sx={{ fontSize: 20 }} />
       </IconButton>
-    );
+    ) : null;
   };
 
   const RenderAdd = () => {
     return (
       <IconButton
-        onClick={onAddRow}
+        onClick={onAddRow}  // Call onAddRow to add a new row
         aria-label="add"
         variant="outlined"
         size="small"
@@ -237,11 +307,12 @@ const PassTable = ({setSharedStateRef,sharedStateRef}) => {
     {
       field: 'option',
       renderHeader: RenderAdd,
-      renderCell: (params) => RenderDelete(params.row),
+      renderCell: (params) => RenderDelete(params.row), 
       width: 55,
       maxWidth: 55,
       minWidth: 55,
       disableColumnMenu: true,
+      editable: false,
       disableColumnFilter: true,
       sortable: false,
     },
@@ -261,6 +332,8 @@ const PassTable = ({setSharedStateRef,sharedStateRef}) => {
       minWidth: 200,
       maxWidth: 400,
       renderCell: (params) => RenderDefect(params.row),
+      valueGetter: (params) => params.row.defect?.name || '', // For sorting and filtering
+      sortComparator: (v1, v2) => v1.localeCompare(v2), // Optional: Customize sorting behavior
     },
     {
       field: 'area',
@@ -269,6 +342,8 @@ const PassTable = ({setSharedStateRef,sharedStateRef}) => {
       minWidth: 180,
       maxWidth: 300,
       renderCell: (params) => RenderArea(params.row),
+      valueGetter: (params) => params.row.area?.name || '', // For sorting and filtering
+      sortComparator: (v1, v2) => v1.localeCompare(v2), // Optional: Customize sorting behavior
     },
     {
       field: 'majorQty',
@@ -299,7 +374,11 @@ const PassTable = ({setSharedStateRef,sharedStateRef}) => {
 
     const qty = parseInt(newRow.majorQty);
 
-    if(passType.name == 'firstPassDefect' && qty > parseInt(passType.firstDefect)){
+    if(qty < 1){
+      setSnackbar({ children: 'Lesser to 1 Qty is Invalid', severity: 'error' });
+      return oldRow
+    }
+    else if(passType.name == 'firstPassDefect' && qty > parseInt(passType.firstDefect)){
       setSnackbar({ children: 'Qty must be equal or lesser to 1st Pass Defect total', severity: 'error' });
       return oldRow
     }else if(passType.name == 'firstPassPullOut' && qty > parseInt(passType.firstPullOut)){
@@ -317,6 +396,27 @@ const PassTable = ({setSharedStateRef,sharedStateRef}) => {
     setSnackbar({ children: 'Error during update', severity: 'error' });
   };
 
+  const findDuplicateIds = (data) => {
+    const seen = new Set();
+    const duplicateIds = new Set();
+  
+    data.forEach((item) => {
+      // Check if defect and area objects are not null and have _id
+      if (item.defect && item.defect._id && item.area && item.area._id) {
+        const key = `${item.defect._id}_${item.area._id}`;
+        if (seen.has(key)) {
+          duplicateIds.add(item.id); // Add the id to duplicateIds if this combination already exists
+        } else {
+          seen.add(key); // Otherwise, add the combination to the seen set
+        }
+      } else {
+        console.warn(`Missing required fields in item with id: ${item.id}`);
+      }
+    });
+  
+    return [...duplicateIds]; // Return an array of duplicate ids
+  };
+
   const onSaveChanges = async () => {
       let flag = true;
 
@@ -329,8 +429,8 @@ const PassTable = ({setSharedStateRef,sharedStateRef}) => {
       for (let i = 0; i < rows.length; i++) {
         const row = rows[i];
         // Check if any of the conditions are met
-        if (row.defect === null || row.area === null || row.majorQty < 1) {
-          setSnackbar({ children: `Defect, Area, MajorQty cannot be less than 1 or empty`, severity: 'error' });
+        if (row.defect === null || row.area === null) {
+          setSnackbar({ children: `Invalid Defect or Area inputed`, severity: 'error' });
           flag = false;
           break; // Exit the loop once a failure condition is found
         }
@@ -349,6 +449,13 @@ const PassTable = ({setSharedStateRef,sharedStateRef}) => {
 
       }
 
+      if(findDuplicateIds(rows).length > 0){
+        setSnackbar({ children: `Duplicate entry row: ${findDuplicateIds(rows)}`, severity: 'error' });
+        flag = false;
+      }
+
+   
+
       if(flag){
         const newUser = `${user?.result?.firstname} ${user?.result?.lastname}`;
 
@@ -359,8 +466,19 @@ const PassTable = ({setSharedStateRef,sharedStateRef}) => {
 
         // update checkEmptyDefect
         await dispatch(checkEmptyDefect({ inspectionId:queryId}));
+        
       }  
   }
+
+  const handleProcessEditCellProps = async (params) => {
+    if (params.field === 'majorQty') {
+      // Delay focus to ensure the edit is committed
+      setTimeout(() => {
+        apiRef.current.setCellFocus(params.id, params.field);
+      }, 0);
+    }
+    return params;
+  };
 
    // USER
    const [user,setUser] = useState(JSON.parse(localStorage.getItem('profile')));
@@ -410,6 +528,7 @@ const PassTable = ({setSharedStateRef,sharedStateRef}) => {
                 <DataGrid
                   rows={rows}
                   columns={columns}
+                  apiRef={apiRef}
                   rowHeight={100}
                   getRowId={(row) => row.id}
                   processRowUpdate={handleProcessRowUpdate}
@@ -419,7 +538,33 @@ const PassTable = ({setSharedStateRef,sharedStateRef}) => {
                   pageSizeOptions={[20]}
                   showCellVerticalBorder
                   showColumnVerticalBorder
+                  processEditCellProps={handleProcessEditCellProps} // Handle focus after edit
+                  experimentalFeatures={{ newEditingApi: true }}
                   density="standard"
+                  onCellEditStop={(params, event) => {
+                    const { key } = event;
+                    const { field, id } = params;
+                
+                    if (key === 'Enter' && field === 'majorQty' ) {
+                      event.preventDefault(); // Prevent the default behavior
+                
+                      // Add a slight delay to allow the editing state to transition
+                      setTimeout(() => {
+                        apiRef.current.setCellFocus(id, field); // Refocus the cell
+                        apiRef.current.startCellEditMode({ id, field:'numericData' }); // Start editing again if needed
+                      });
+                    }else if (key === 'Enter' && field === 'numericData' ) {
+                      event.preventDefault(); // Prevent the default behavior
+                
+                      // Add a slight delay to allow the editing state to transition
+                      setTimeout(() => {
+                        apiRef.current.setCellFocus(id, field); // Refocus the cell
+                        //apiRef.current.startCellEditMode({ id, field:'numericData' }); // Start editing again if needed
+                      });
+                    }
+
+                    //field === 'numericData'
+                  }}
                   sx={{
                     '& .MuiDataGrid-columnHeaderTitle': {
                       whiteSpace: 'break-spaces',

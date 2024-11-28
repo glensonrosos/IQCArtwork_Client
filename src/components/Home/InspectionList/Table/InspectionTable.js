@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { DataGridPro,GridToolbarContainer,GridToolbarColumnsButton  } from '@mui/x-data-grid-pro';
-import {Box,TextField,Dialog,DialogTitle,IconButton,ListItemText ,DialogContent,Autocomplete,Paper,Pagination,PaginationItem,Stack, FormControlLabel,Checkbox,Button,Backdrop,CircularProgress,Snackbar,Alert, Typography} from '@mui/material';
+import {Box,TextField,Dialog,DialogTitle,IconButton,ListItemText ,DialogContent,Autocomplete,Paper,Pagination,PaginationItem,Stack, FormControlLabel,Checkbox,Button,Backdrop,CircularProgress,Snackbar,Alert, Typography, Tooltip} from '@mui/material';
 import Grid from '@mui/material/Unstable_Grid2';
 
 import Accordion from '@mui/material/Accordion';
@@ -29,7 +29,8 @@ import {getBuyers} from '../../../../actions/buyers';
 import {getMaterials} from '../../../../actions/materials';
 import {getSuppliers} from '../../../../actions/suppliers';
 
-import {getInspections,getInspectionsBySearch,getExportReportList,getExportSumReport,getExportDefectsReport,setInspectionMessageNull,setInspectionClearStates} from '../../../../actions/inspections';
+import {getInspections,getInspectionsBySearch,getExportReportList,getExportSumReport,getExportDefectsReport,setInspectionMessageNull,setInspectionClearStates,
+  getExportItemsSummaryReport,getExportSuppliersSummaryReport} from '../../../../actions/inspections';
 
 import {useNavigate,useLocation} from 'react-router-dom';
 
@@ -61,7 +62,8 @@ const InspectionTable = () => {
   const {suppliers,isLoading:supplierLoading} = useSelector(state=> state.suppliers);
   const {buyers,isLoading:buyerLoading} = useSelector(state=> state.buyers);
   const {materials,isLoading:materialLoading} = useSelector(state=> state.materials);
-  const {inspections,message:inspectionMessage,isLoading:inspectionLoading,numberOfPages,inspectionsList,defectDataList,exportSumReport,exportDefectsReport } = useSelector(state=> state.inspections);
+  const {inspections,message:inspectionMessage,isLoading:inspectionLoading,numberOfPages,inspectionsList,defectDataList,
+    exportSumReport,exportSuppliersSumReport,exportItemsSumReport,exportDefectsReport,affectedRowsInspection } = useSelector(state=> state.inspections);
   
   const[input,setInput] = useState({
     itemCode: null,
@@ -75,9 +77,9 @@ const InspectionTable = () => {
   });
 
   const[inputReport,setInputReport] = useState({
-    itemCode: null,
-    supplier:null,
-    color:null,
+    itemCode: [],
+    supplier:[],
+    color:[],
     material:null,
     buyer:null,
     dateStart:null,
@@ -146,20 +148,44 @@ const InspectionTable = () => {
         ["Date Start", "Date End", "ItemCode", "Color", "Material", "Buyer", "Supplier"]
       ];
 
-      // Define the search criteria data in the row below the header
-      const searchCriteriaData = [
-        [
-            inputReport?.dateStart ? moment(inputReport.dateStart).format('MM-DD-YYYY') : null,
-            inputReport?.dateEnd ? moment(inputReport.dateEnd).format('MM-DD-YYYY') : null,
-            inputReport?.itemCode || null,
-            inputReport?.color || null,
-            inputReport?.material?.name || null,
-            inputReport?.buyer?.name || null,
-            inputReport?.supplier
-                ? inputReport.supplier.map(s => s.name).join(', ') // Join supplier names with commas
-                : null
-        ]
-      ];
+      // Define the search criteria data
+      const searchCriteriaData = [];
+      const maxLength = Math.max(
+        inputReport?.itemCode?.length || 0,
+        inputReport?.color?.length || 0,
+        inputReport?.supplier?.length || 0,
+        1 // Ensure at least one row for dateStart and dateEnd
+      );
+
+      // Loop through the maximum length and populate data
+      for (let index = 0; index < maxLength; index++) {
+        const itemCodeValue = inputReport?.itemCode?.[index] || "";
+        const colorValue = inputReport?.color?.[index] || "";
+        const supplierValue = inputReport?.supplier?.[index]?.name || "";
+
+        searchCriteriaData.push([
+          index === 0 ? (inputReport?.dateStart ? moment(inputReport.dateStart).format("MM-DD-YYYY") : "") : "", // Date Start
+          index === 0 ? (inputReport?.dateEnd ? moment(inputReport.dateEnd).format("MM-DD-YYYY") : "") : "", // Date End
+          itemCodeValue, // ItemCode
+          colorValue, // Color
+          index === 0 ? (inputReport?.material?.name || "") : "", // Material
+          index === 0 ? (inputReport?.buyer?.name || "") : "", // Buyer
+          supplierValue // Supplier
+        ]);
+      }
+
+      // Handle case where no rows were generated but dateStart and dateEnd are mandatory
+      if (searchCriteriaData.length === 0) {
+        searchCriteriaData.push([
+          inputReport?.dateStart ? moment(inputReport.dateStart).format("MM-DD-YYYY") : "", // Date Start
+          inputReport?.dateEnd ? moment(inputReport.dateEnd).format("MM-DD-YYYY") : "", // Date End
+          "", // ItemCode
+          "", // Color
+          inputReport?.material?.name || "", // Material
+          inputReport?.buyer?.name || "", // Buyer
+          "" // Supplier
+        ]);
+      }
 
       // Add a few empty rows for spacing
       const emptyRows = Array(2).fill([]); // Adjust the number of empty rows as needed
@@ -218,7 +244,7 @@ const InspectionTable = () => {
       // Write to a buffer and save the file using FileSaver
       const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
       const data = new Blob([excelBuffer], { type: 'application/octet-stream' });
-      saveAs(data, 'inspection_report.xlsx');
+      saveAs(data, 'inspection_and_defects_list.xlsx');
 
       
       setSnackbar({ children: `Exporting report `, severity: 'success' });
@@ -226,25 +252,49 @@ const InspectionTable = () => {
       dispatch(setInspectionMessageNull());
     }
     else if(!inspectionLoading && inspectionMessage == 'export sum' && exportSumReport.length > 0 ){
-      // Define the header data in a single row
-      const headerData = [
+       // Define the header data in a single row
+       const headerData = [
         ["Date Start", "Date End", "ItemCode", "Color", "Material", "Buyer", "Supplier"]
       ];
 
-      // Define the search criteria data in the row below the header
-      const searchCriteriaData = [
-        [
-            inputReport?.dateStart ? moment(inputReport.dateStart).format('MM-DD-YYYY') : null,
-            inputReport?.dateEnd ? moment(inputReport.dateEnd).format('MM-DD-YYYY') : null,
-            inputReport?.itemCode || null,
-            inputReport?.color || null,
-            inputReport?.material?.name || null,
-            inputReport?.buyer?.name || null,
-            inputReport?.supplier
-                ? inputReport.supplier.map(s => s.name).join(', ') // Join supplier names with commas
-                : null
-        ]
-      ];
+       // Define the search criteria data
+       const searchCriteriaData = [];
+       const maxLength = Math.max(
+         inputReport?.itemCode?.length || 0,
+         inputReport?.color?.length || 0,
+         inputReport?.supplier?.length || 0,
+         1 // Ensure at least one row for dateStart and dateEnd
+       );
+ 
+       // Loop through the maximum length and populate data
+       for (let index = 0; index < maxLength; index++) {
+         const itemCodeValue = inputReport?.itemCode?.[index] || "";
+         const colorValue = inputReport?.color?.[index] || "";
+         const supplierValue = inputReport?.supplier?.[index]?.name || "";
+ 
+         searchCriteriaData.push([
+           index === 0 ? (inputReport?.dateStart ? moment(inputReport.dateStart).format("MM-DD-YYYY") : "") : "", // Date Start
+           index === 0 ? (inputReport?.dateEnd ? moment(inputReport.dateEnd).format("MM-DD-YYYY") : "") : "", // Date End
+           itemCodeValue, // ItemCode
+           colorValue, // Color
+           index === 0 ? (inputReport?.material?.name || "") : "", // Material
+           index === 0 ? (inputReport?.buyer?.name || "") : "", // Buyer
+           supplierValue // Supplier
+         ]);
+       }
+ 
+       // Handle case where no rows were generated but dateStart and dateEnd are mandatory
+       if (searchCriteriaData.length === 0) {
+         searchCriteriaData.push([
+           inputReport?.dateStart ? moment(inputReport.dateStart).format("MM-DD-YYYY") : "", // Date Start
+           inputReport?.dateEnd ? moment(inputReport.dateEnd).format("MM-DD-YYYY") : "", // Date End
+           "", // ItemCode
+           "", // Color
+           inputReport?.material?.name || "", // Material
+           inputReport?.buyer?.name || "", // Buyer
+           "" // Supplier
+         ]);
+       }
 
       // Add a few empty rows for spacing
       const emptyRows = Array(2).fill([]); // Adjust the number of empty rows as needed
@@ -255,6 +305,7 @@ const InspectionTable = () => {
         inspection.Supplier,
         inspection.ItemCode,
         inspection.ItemDescription,
+        inspection.ColorFinish,
         inspection.Buyer,
         inspection.Material,
         inspection.DeliveryQty,
@@ -270,7 +321,7 @@ const InspectionTable = () => {
 
       // Define the inspections list header row
       const inspectionsHeader = [
-        "RowId","Supplier", "Item Code", "Item Description","Buyer", "Material", "Delivery Qty",
+        "RowId","Supplier", "Item Code", "Item Description","Color Finish","Buyer", "Material", "Delivery Qty",
         "Overall Good","Overall PullOut","(1P) Defect overall", "(1P) Good overall", "(1P) PullOut overall",
         "(2P) Good overall", "(2P) PullOut overall","Unfinished overall",
       ];
@@ -293,60 +344,111 @@ const InspectionTable = () => {
       // Write to a buffer and save the file using FileSaver
       const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
       const data = new Blob([excelBuffer], { type: 'application/octet-stream' });
-      saveAs(data, 'inspection_sum.xlsx');
+      saveAs(data, 'groupBy_supplier_item_buyer_material_summary.xlsx');
 
       
       setSnackbar({ children: `Exporting report `, severity: 'success' });
 
       dispatch(setInspectionMessageNull());
     }
-    else if(!inspectionLoading && inspectionMessage == 'export defects' && exportDefectsReport.length > 0 ){
+    else if(!inspectionLoading && inspectionMessage == 'export suppliers sum' && exportSuppliersSumReport.length > 0 && affectedRowsInspection.length > 0  ){
       // Define the header data in a single row
       const headerData = [
         ["Date Start", "Date End", "ItemCode", "Color", "Material", "Buyer", "Supplier"]
       ];
 
-      // Define the search criteria data in the row below the header
-      const searchCriteriaData = [
-        [
-            inputReport?.dateStart ? moment(inputReport.dateStart).format('MM-DD-YYYY') : null,
-            inputReport?.dateEnd ? moment(inputReport.dateEnd).format('MM-DD-YYYY') : null,
-            inputReport?.itemCode || null,
-            inputReport?.color || null,
-            inputReport?.material?.name || null,
-            inputReport?.buyer?.name || null,
-            inputReport?.supplier
-                ? inputReport.supplier.map(s => s.name).join(', ') // Join supplier names with commas
-                : null
-        ]
-      ];
+      // Define the search criteria data
+      const searchCriteriaData = [];
+      const maxLength = Math.max(
+        inputReport?.itemCode?.length || 0,
+        inputReport?.color?.length || 0,
+        inputReport?.supplier?.length || 0,
+        1 // Ensure at least one row for dateStart and dateEnd
+      );
 
-  
+      // Loop through the maximum length and populate data
+      for (let index = 0; index < maxLength; index++) {
+        const itemCodeValue = inputReport?.itemCode?.[index] || "";
+        const colorValue = inputReport?.color?.[index] || "";
+        const supplierValue = inputReport?.supplier?.[index]?.name || "";
+
+        searchCriteriaData.push([
+          index === 0 ? (inputReport?.dateStart ? moment(inputReport.dateStart).format("MM-DD-YYYY") : "") : "", // Date Start
+          index === 0 ? (inputReport?.dateEnd ? moment(inputReport.dateEnd).format("MM-DD-YYYY") : "") : "", // Date End
+          itemCodeValue, // ItemCode
+          colorValue, // Color
+          index === 0 ? (inputReport?.material?.name || "") : "", // Material
+          index === 0 ? (inputReport?.buyer?.name || "") : "", // Buyer
+          supplierValue // Supplier
+        ]);
+      }
+
+      // Handle case where no rows were generated but dateStart and dateEnd are mandatory
+      if (searchCriteriaData.length === 0) {
+        searchCriteriaData.push([
+          inputReport?.dateStart ? moment(inputReport.dateStart).format("MM-DD-YYYY") : "", // Date Start
+          inputReport?.dateEnd ? moment(inputReport.dateEnd).format("MM-DD-YYYY") : "", // Date End
+          "", // ItemCode
+          "", // Color
+          inputReport?.material?.name || "", // Material
+          inputReport?.buyer?.name || "", // Buyer
+          "" // Supplier
+        ]);
+      }
+
+      // Add a few empty rows for spacing
+      const emptyRows = Array(2).fill([]); // Adjust the number of empty rows as needed
 
       // Map inspectionsList into rows of data
-      const inspectionsRows = exportDefectsReport.map((inspection) => [
-
-        inspection.defectName,
-        inspection.defectData[0].totalMajorQty,
-        inspection.defectData[1].totalMajorQty,
-        inspection.defectData[2].totalMajorQty,
+      const inspectionsRows = exportSuppliersSumReport.map((inspection) => [
+        inspection.RowId,
+        inspection.Supplier,
+        inspection.DeliveryQty,
+        inspection.TotalGoodQty,
+        inspection.TotalPullOutQty,
+        inspection.FirstPass_Defect,
+        inspection.FirstPass_Good,
+        inspection.FirstPass_PullOut,
+        inspection.SecondPass_Good,
+        inspection.SecondPass_PullOut,
+        inspection.Unfinished,
       ]);
 
       // Define the inspections list header row
       const inspectionsHeader = [
-        "Defect Name","(1P) Defect Qty", "(1P) PullOut Qty","(2P) PullOut Qty",
+        "RowId","Supplier", "Delivery Qty",
+        "Overall Good","Overall PullOut","(1P) Defect overall", "(1P) Good overall", "(1P) PullOut overall",
+        "(2P) Good overall", "(2P) PullOut overall","Unfinished overall",
       ];
+
+      const affectedRows = affectedRowsInspection.map((inspection) => [
+        inspection.itemCode,
+        inspection.color,
+        inspection.supplier,
+        inspection.buyer,
+        inspection.material,
+      ]);
+
+      const affectedHeaderData = [
+        ["ItemCode", "Color", "Supplier", "Buyer", "Material"]
+      ];
+      
 
       // Combine everything into a single sheet data array
       const sheetData = [inspectionsHeader, ...inspectionsRows];
       const searchData = [...headerData, ...searchCriteriaData,]
+      const affectedRowsData =[...affectedHeaderData,...affectedRows];
 
       // Create a new workbook
       const wb = XLSX.utils.book_new();
 
       // Convert sheetData into a sheet and append it to the workbook
       const wsInspections = XLSX.utils.aoa_to_sheet(sheetData);
-      XLSX.utils.book_append_sheet(wb, wsInspections, "InspectionList");
+      XLSX.utils.book_append_sheet(wb, wsInspections, "InspectionBySupplier");
+
+      // Add defectDataList to a new sheet
+      const wsAffected = XLSX.utils.aoa_to_sheet(affectedRowsData);
+      XLSX.utils.book_append_sheet(wb, wsAffected, "AffectedRowsData");
 
       // Add defectDataList to a new sheet
       const wsSearch = XLSX.utils.aoa_to_sheet(searchData);
@@ -355,7 +457,222 @@ const InspectionTable = () => {
       // Write to a buffer and save the file using FileSaver
       const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
       const data = new Blob([excelBuffer], { type: 'application/octet-stream' });
-      saveAs(data, 'inspection_defects.xlsx');
+      saveAs(data, 'by_supplier_summary.xlsx');
+
+      
+      setSnackbar({ children: `Exporting report `, severity: 'success' });
+
+      dispatch(setInspectionMessageNull());
+    }
+    else if(!inspectionLoading && inspectionMessage == 'export items sum' && exportItemsSumReport.length > 0 && affectedRowsInspection.length > 0  ){
+      // Define the header data in a single row
+      const headerData = [
+        ["Date Start", "Date End", "ItemCode", "Color", "Material", "Buyer", "Supplier"]
+      ];
+
+      // Define the search criteria data
+      const searchCriteriaData = [];
+      const maxLength = Math.max(
+        inputReport?.itemCode?.length || 0,
+        inputReport?.color?.length || 0,
+        inputReport?.supplier?.length || 0,
+        1 // Ensure at least one row for dateStart and dateEnd
+      );
+
+      // Loop through the maximum length and populate data
+      for (let index = 0; index < maxLength; index++) {
+        const itemCodeValue = inputReport?.itemCode?.[index] || "";
+        const colorValue = inputReport?.color?.[index] || "";
+        const supplierValue = inputReport?.supplier?.[index]?.name || "";
+
+        searchCriteriaData.push([
+          index === 0 ? (inputReport?.dateStart ? moment(inputReport.dateStart).format("MM-DD-YYYY") : "") : "", // Date Start
+          index === 0 ? (inputReport?.dateEnd ? moment(inputReport.dateEnd).format("MM-DD-YYYY") : "") : "", // Date End
+          itemCodeValue, // ItemCode
+          colorValue, // Color
+          index === 0 ? (inputReport?.material?.name || "") : "", // Material
+          index === 0 ? (inputReport?.buyer?.name || "") : "", // Buyer
+          supplierValue // Supplier
+        ]);
+      }
+
+      // Handle case where no rows were generated but dateStart and dateEnd are mandatory
+      if (searchCriteriaData.length === 0) {
+        searchCriteriaData.push([
+          inputReport?.dateStart ? moment(inputReport.dateStart).format("MM-DD-YYYY") : "", // Date Start
+          inputReport?.dateEnd ? moment(inputReport.dateEnd).format("MM-DD-YYYY") : "", // Date End
+          "", // ItemCode
+          "", // Color
+          inputReport?.material?.name || "", // Material
+          inputReport?.buyer?.name || "", // Buyer
+          "" // Supplier
+        ]);
+      }
+
+      // Add a few empty rows for spacing
+      const emptyRows = Array(2).fill([]); // Adjust the number of empty rows as needed
+
+      // Map inspectionsList into rows of data
+      const inspectionsRows = exportItemsSumReport.map((inspection) => [
+        inspection.RowId,
+        inspection.ItemCode,
+        inspection.ItemDescription,
+        inspection.ColorFinish,
+        inspection.DeliveryQty,
+        inspection.TotalGoodQty,
+        inspection.TotalPullOutQty,
+        inspection.FirstPass_Defect,
+        inspection.FirstPass_Good,
+        inspection.FirstPass_PullOut,
+        inspection.SecondPass_Good,
+        inspection.SecondPass_PullOut,
+        inspection.Unfinished,
+      ]);
+
+      // Define the inspections list header row
+      const inspectionsHeader = [
+        "RowId","Item Code","Item Description","Color Finish", "Delivery Qty",
+        "Overall Good","Overall PullOut","(1P) Defect overall", "(1P) Good overall", "(1P) PullOut overall",
+        "(2P) Good overall", "(2P) PullOut overall","Unfinished overall",
+      ];
+
+      const affectedRows = affectedRowsInspection.map((inspection) => [
+        inspection.itemCode,
+        inspection.color,
+        inspection.supplier,
+        inspection.buyer,
+        inspection.material,
+      ]);
+
+      const affectedHeaderData = [
+        ["ItemCode", "Color", "Supplier", "Buyer", "Material"]
+      ];
+
+      // Combine everything into a single sheet data array
+      const sheetData = [inspectionsHeader, ...inspectionsRows];
+      const searchData = [...headerData, ...searchCriteriaData,]
+      const affectedRowsData =[...affectedHeaderData,...affectedRows];
+
+      // Create a new workbook
+      const wb = XLSX.utils.book_new();
+
+      // Convert sheetData into a sheet and append it to the workbook
+      const wsInspections = XLSX.utils.aoa_to_sheet(sheetData);
+      XLSX.utils.book_append_sheet(wb, wsInspections, "InspectionByItem");
+
+      // Add defectDataList to a new sheet
+      const wsAffected = XLSX.utils.aoa_to_sheet(affectedRowsData);
+      XLSX.utils.book_append_sheet(wb, wsAffected, "AffectedRowsData");
+
+      // Add defectDataList to a new sheet
+      const wsSearch = XLSX.utils.aoa_to_sheet(searchData);
+      XLSX.utils.book_append_sheet(wb, wsSearch, "SearchCriteria");
+
+      // Write to a buffer and save the file using FileSaver
+      const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      const data = new Blob([excelBuffer], { type: 'application/octet-stream' });
+      saveAs(data, 'by_item_summary.xlsx');
+
+      
+      setSnackbar({ children: `Exporting report `, severity: 'success' });
+
+      dispatch(setInspectionMessageNull());
+    }
+    else if(!inspectionLoading && inspectionMessage == 'export defects' && exportDefectsReport.length > 0 && affectedRowsInspection.length > 0 ){
+        // Define the header data in a single row
+        const headerData = [
+          ["Date Start", "Date End", "ItemCode", "Color", "Material", "Buyer", "Supplier"]
+        ];
+  
+      // Define the search criteria data
+      const searchCriteriaData = [];
+      const maxLength = Math.max(
+        inputReport?.itemCode?.length || 0,
+        inputReport?.color?.length || 0,
+        inputReport?.supplier?.length || 0,
+        1 // Ensure at least one row for dateStart and dateEnd
+      );
+
+      // Loop through the maximum length and populate data
+      for (let index = 0; index < maxLength; index++) {
+        const itemCodeValue = inputReport?.itemCode?.[index] || "";
+        const colorValue = inputReport?.color?.[index] || "";
+        const supplierValue = inputReport?.supplier?.[index]?.name || "";
+
+        searchCriteriaData.push([
+          index === 0 ? (inputReport?.dateStart ? moment(inputReport.dateStart).format("MM-DD-YYYY") : "") : "", // Date Start
+          index === 0 ? (inputReport?.dateEnd ? moment(inputReport.dateEnd).format("MM-DD-YYYY") : "") : "", // Date End
+          itemCodeValue, // ItemCode
+          colorValue, // Color
+          index === 0 ? (inputReport?.material?.name || "") : "", // Material
+          index === 0 ? (inputReport?.buyer?.name || "") : "", // Buyer
+          supplierValue // Supplier
+        ]);
+      }
+
+      // Handle case where no rows were generated but dateStart and dateEnd are mandatory
+      if (searchCriteriaData.length === 0) {
+        searchCriteriaData.push([
+          inputReport?.dateStart ? moment(inputReport.dateStart).format("MM-DD-YYYY") : "", // Date Start
+          inputReport?.dateEnd ? moment(inputReport.dateEnd).format("MM-DD-YYYY") : "", // Date End
+          "", // ItemCode
+          "", // Color
+          inputReport?.material?.name || "", // Material
+          inputReport?.buyer?.name || "", // Buyer
+          "" // Supplier
+        ]);
+      }
+
+      const affectedRows = affectedRowsInspection.map((inspection) => [
+        inspection.itemCode,
+        inspection.color,
+        inspection.supplier,
+        inspection.buyer,
+        inspection.material,
+      ]);
+
+      const affectedHeaderData = [
+        ["ItemCode", "Color", "Supplier", "Buyer", "Material"]
+      ];
+
+      // Map inspectionsList into rows of data
+      const inspectionsRows = exportDefectsReport.map((inspection) => [
+        inspection.defectName,
+        inspection.areaName,
+        inspection.firstPassDefect,
+        inspection.firstPassPullOut,
+        inspection.secondPassPullOut,
+      ]);
+
+      // Define the inspections list header row
+      const inspectionsHeader = [
+        "Defect Name","Area Name","(1P) Defect Qty", "(1P) PullOut Qty","(2P) PullOut Qty",
+      ];
+
+      // Combine everything into a single sheet data array
+      const sheetData = [inspectionsHeader, ...inspectionsRows];
+      const searchData = [...headerData, ...searchCriteriaData];
+      const affectedRowsData =[...affectedHeaderData,...affectedRows];
+
+      // Create a new workbook
+      const wb = XLSX.utils.book_new();
+
+      // Convert sheetData into a sheet and append it to the workbook
+      const wsInspections = XLSX.utils.aoa_to_sheet(sheetData);
+      XLSX.utils.book_append_sheet(wb, wsInspections, "OverAllDefects");
+
+      // Add defectDataList to a new sheet
+      const wsAffected = XLSX.utils.aoa_to_sheet(affectedRowsData);
+      XLSX.utils.book_append_sheet(wb, wsAffected, "AffectedRowsData");
+
+      // Add defectDataList to a new sheet
+      const wsSearch = XLSX.utils.aoa_to_sheet(searchData);
+      XLSX.utils.book_append_sheet(wb, wsSearch, "SearchCriteria");
+
+      // Write to a buffer and save the file using FileSaver
+      const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      const data = new Blob([excelBuffer], { type: 'application/octet-stream' });
+      saveAs(data, 'overall_defects.xlsx');
 
       
       setSnackbar({ children: `Exporting report `, severity: 'success' });
@@ -368,7 +685,7 @@ const InspectionTable = () => {
       dispatch(setInspectionMessageNull());
     }
     setIsLoading(false);
-},[dispatch,inspectionLoading,inspectionMessage,inspectionsList,defectDataList]);
+},[dispatch,inspectionLoading,inspectionMessage,inspectionsList,defectDataList,exportSumReport,exportSuppliersSumReport,exportDefectsReport,affectedRowsInspection]);
 
  
 
@@ -413,51 +730,65 @@ const InspectionTable = () => {
 
     const handleOnChangeInputReport = (name, e, val = null) => {
       if (name === "dateStart" || name === "dateEnd") {
-          setInputReport((prev) => ({
-              ...prev,
-              [name]: e
-          }));
+        setInputReport((prev) => ({
+          ...prev,
+          [name]: e,
+        }));
       } else if (name === "supplier") {
-          setInputReport((prev) => ({
-              ...prev,
-              [name]: val ? [...val] : []
-          }));
+        setInputReport((prev) => ({
+          ...prev,
+          [name]: val ? [...val] : [],
+        }));
       } else if (name === "material" || name === "buyer") {
-          setInputReport((prev) => ({
-              ...prev,
-              [name]: val
-          }));
+        setInputReport((prev) => ({
+          ...prev,
+          [name]: val,
+        }));
       } else if (name === "unfinished") {
-          setInputReport((prev) => ({
-              ...prev,
-              [name]: e.target.checked
-          }));
+        setInputReport((prev) => ({
+          ...prev,
+          [name]: e.target.checked,
+        }));
+      } else if (name === "itemCode" || name === "color") {
+        // Split the value by commas and store it as an array
+        const valueArray = e.target.value.split(",").map((item) => item.trim()).filter((item) => item.length > 0);
+        
+        // Handle removal if an item is deleted and only non-empty values are kept
+        setInputReport((prev) => ({
+          ...prev,
+          [name]: valueArray,
+        }));
       } else {
-          setInputReport((prev) => ({
-              ...prev,
-              [name]: e.target.value
-          }));
+        setInputReport((prev) => ({
+          ...prev,
+          [name]: e.target.value,
+        }));
       }
-  };
+    };
+    
   
 
     const onSearch = () =>{
 
-      setRows([]);
-        
-      if((input?.itemCode == null || input?.itemCode == '') && 
+      let newDateStart = moment(input?.dateStart).isBetween(moment('2000','YYYY'), moment().add(3,'y'));
+      let newDateEnd = moment(input?.dateEnd).isBetween(moment('2000','YYYY'), moment().add(3,'y'));
+
+      if( !newDateStart || !newDateEnd ){
+        setSnackbar({ children: `Date Range inputed is invalid`, severity: 'error' });
+      }else if((input?.itemCode == null || input?.itemCode == '') && 
           (input?.color == null || input?.color == '') && 
           (input?.dateStart == null || input?.dateStart == '') && 
           (input?.dateEnd == null || input?.dateEnd == '') && 
           (input?.supplier?._id == null ||  input?.supplier?._id == '') &&
           (input?.buyer?._id == null ||  input?.buyer?._id == '') &&
           (input?.material?._id == null ||  input?.material?._id == '') && input?.unfinished == false){
+              setRows([]);
               navigate(`/inspection-list?page=1`);
               dispatch(getInspections(1));
              
               console.log(`called getInspections`)
       }else{
-          
+          setRows([]);
           dispatch(getInspectionsBySearch({
               itemcode: input?.itemCode || '',
               color: input?.color || '',
@@ -473,6 +804,8 @@ const InspectionTable = () => {
           navigate(`/inspection-list/search?itemcode=${input?.itemCode || ''}&color=${input?.color || ''}&datestart=${input?.dateStart && input?.dateStart !== '' ? moment(input?.dateStart).format('MM-DD-YYYY') : ''}&dateend=${input?.dateEnd && input?.dateEnd !== '' ? moment(input?.dateEnd).format('MM-DD-YYYY') : ''}&supplier=${input?.supplier?.name  || ''}&buyer=${input?.buyer?.name  || ''}&material=${input?.material?.name || ''}&unfinished=${input?.unfinished || ''}&page=1`);
       }
     }
+
+
     const onClear = () =>{
        setInput({
         itemCode:'',
@@ -522,8 +855,9 @@ const InspectionTable = () => {
       inspections?.map(i => {
         rowsData.push(
           createData(i?._id,moment(i?.date).format('MM-DD-YYYY'),i?.supplier?.name, i?.item?.itemCode, i?.item?.itemDescription,i?.item?.color,
+          moment(i?.totalMinWork?.start, 'HH:mm').format('h:mm A'),moment(i?.totalMinWork?.end, 'HH:mm').format('h:mm A'),
             i?.buyer?.name, i?.material?.name,i?.weight,i?.deliveryQty,i?.firstPass?.defectQty, i?.firstPass?.totalGoodQty,i?.firstPass?.totalPullOutQty,
-            i?.secondPass?.totalGoodQty,i?.secondPass?.totalPullOutQty, i?.totalGoodQty, i?.totalPullOutQty, i?.unfinished,i?.emptyDefect));
+            i?.secondPass?.totalGoodQty,i?.secondPass?.totalPullOutQty, i?.totalGoodQty, i?.totalPullOutQty, i?.unfinished,moment(i?.dateClosure).format('MM-DD-YYYY'),i?.emptyDefect,i?.passIssues));
         return null;
       });
       setRows([...rowsData]);
@@ -531,8 +865,8 @@ const InspectionTable = () => {
 
   }, [inspectionLoading,inspections]);
 
-  function createData(id, inspectiondate, supplier, itemcode, itemdescription,color, buyer, material, weight, deliveryqty, firstpassmajor, firstpassgood, firstpasspullout, secondpassgood, secondpasspullout, totalgood, totalpullout, unfinished,emptyDefect) {
-    return { id, inspectiondate, supplier, itemcode, itemdescription,color, buyer, material, weight, deliveryqty, firstpassmajor, firstpassgood, firstpasspullout, secondpassgood, secondpasspullout, totalgood, totalpullout, unfinished,emptyDefect };
+  function createData(id, inspectiondate, supplier, itemcode, itemdescription,color,timestart,timeend, buyer, material, weight, deliveryqty, firstpassmajor, firstpassgood, firstpasspullout, secondpassgood, secondpasspullout, totalgood, totalpullout, unfinished,dateclosure,emptyDefect,passIssues) {
+    return { id, inspectiondate, supplier, itemcode, itemdescription,color,timestart,timeend, buyer, material, weight, deliveryqty, firstpassmajor, firstpassgood, firstpasspullout, secondpassgood, secondpasspullout, totalgood, totalpullout, unfinished,dateclosure,emptyDefect,passIssues };
   }
 
   const RenderDate = (row) =>{
@@ -571,6 +905,8 @@ const InspectionTable = () => {
     { field: 'itemcode', headerName: 'Item Code', headerClassName: 'pin-header',width:120 },
     { field: 'itemdescription', headerName: 'Item Description',  headerClassName: 'pin-header',width:200},
     { field: 'color', headerName: 'Color Finish',  headerClassName: 'pin-header',width:150},
+    { field: 'timestart', headerName: 'T-start',  headerClassName: 'pin-header',width:80},
+    { field: 'timeend', headerName: 'T-end',  headerClassName: 'pin-header',width:80},
     { field: 'buyer', headerName: 'Buyer', headerClassName: 'pin-header',width:120},
     { field: 'material', headerName: 'Material', headerClassName: 'pin-header',width:120},
     { field: 'weight', headerName: 'Weight',headerClassName:'pin-header',width:70},
@@ -583,7 +919,9 @@ const InspectionTable = () => {
     { field: 'totalgood', headerName: 'Good', width:70},
     { field: 'totalpullout', headerName: 'Pull-Out',headerClassName:'defect-header',width:70 },
     { field: 'unfinished', headerName: 'Un finished',headerClassName:'pullout-header', width:70},
-    { field: 'emptyDefect', headerName: 'Is Empty Data'}
+    { field: 'dateclosure', headerName: 'Date Closure',headerClassName:'pullout-header', width:120},
+    { field: 'emptyDefect', headerName: 'Is Empty Data'},
+    { field: 'passIssues', headerName: 'Pass Issues'}
   ];
 
   const headerGroupCustom = (title) =>{
@@ -658,8 +996,84 @@ const InspectionTable = () => {
       let newDateStart = moment(inputReport?.dateStart).isBetween(moment('2000','YYYY'), moment().add(3,'y'));
       let newDateEnd = moment(inputReport?.dateEnd).isBetween(moment('2000','YYYY'), moment().add(3,'y'));
 
-      if( newDateStart && newDateEnd ){
+      let flag = true;
+     
+      if (inputReport?.itemCode.length > 0) {
+        const hasShortItem = inputReport?.itemCode.some((itm) => itm.length < 3);
+        if (hasShortItem) {
+          flag = false; // Set flag to false if any item is too short
+          setSnackbar({
+            children: `ItemCode inputted must have a minimum of 3 characters per item, separated by commas.`,
+            severity: 'error',
+          });
+        }
+      }
+
+      if (inputReport?.color.length > 0) {
+        const hasShortItem = inputReport?.color.some((itm) => itm.length < 3);
+        if (hasShortItem) {
+          flag = false; // Set flag to false if any item is too short
+          setSnackbar({
+            children: `Color inputted must have a minimum of 3 characters per item, separated by commas.`,
+            severity: 'error',
+          });
+        }
+      }
+
+      if( !newDateStart || !newDateEnd ){
+         flag = false;
+         setSnackbar({ children: `Date Range inputed is invalid`, severity: 'error' });
+
+      }
+      if(flag === true){
         dispatch(getExportReportList({
+          itemcode: inputReport?.itemCode || [],
+          color: inputReport?.color || [],
+          datestart: inputReport?.dateStart || '',
+          dateend: inputReport?.dateEnd || '',
+          buyer: inputReport?.buyer?._id || '',
+          supplier: inputReport?.supplier || [],
+          material: inputReport?.material?._id || ''}));
+  
+          setIsLoading(true);
+      }
+  }
+
+  const onExportReportSum = () =>{
+      let newDateStart = moment(inputReport?.dateStart).isBetween(moment('2000','YYYY'), moment().add(3,'y'));
+      let newDateEnd = moment(inputReport?.dateEnd).isBetween(moment('2000','YYYY'), moment().add(3,'y'));
+
+      let flag = true;
+     
+      if (inputReport?.itemCode.length > 0) {
+        const hasShortItem = inputReport?.itemCode.some((itm) => itm.length < 3);
+        if (hasShortItem) {
+          flag = false; // Set flag to false if any item is too short
+          setSnackbar({
+            children: `ItemCode inputted must have a minimum of 3 characters per item, separated by commas.`,
+            severity: 'error',
+          });
+        }
+      }
+
+      if (inputReport?.color.length > 0) {
+        const hasShortItem = inputReport?.color.some((itm) => itm.length < 3);
+        if (hasShortItem) {
+          flag = false; // Set flag to false if any item is too short
+          setSnackbar({
+            children: `Color inputted must have a minimum of 3 characters per item, separated by commas.`,
+            severity: 'error',
+          });
+        }
+      }
+
+      if( !newDateStart || !newDateEnd ){
+         flag = false;
+         setSnackbar({ children: `Date Range inputed is invalid`, severity: 'error' });
+
+      }
+      if(flag === true){
+        dispatch(getExportSumReport({
           itemcode: inputReport?.itemCode || '',
           color: inputReport?.color || '',
           datestart: inputReport?.dateStart || '',
@@ -669,39 +1083,92 @@ const InspectionTable = () => {
           material: inputReport?.material?._id || ''}));
   
           setIsLoading(true);
-      }else
-        setSnackbar({ children: `Date Range inputed is invalid`, severity: 'error' });
-  }
-
-  const onExportReportSum = () =>{
-
-
-    let newDateStart = moment(inputReport?.dateStart).isBetween(moment('2000','YYYY'), moment().add(3,'y'));
-    let newDateEnd = moment(inputReport?.dateEnd).isBetween(moment('2000','YYYY'), moment().add(3,'y'));
-
-    if( newDateStart && newDateEnd ){
-      dispatch(getExportSumReport({
-        itemcode: inputReport?.itemCode || '',
-        color: inputReport?.color || '',
-        datestart: inputReport?.dateStart || '',
-        dateend: inputReport?.dateEnd || '',
-        buyer: inputReport?.buyer?._id || '',
-        supplier: inputReport?.supplier || [],
-        material: inputReport?.material?._id || ''}));
-
-        setIsLoading(true);
-    }else
-      setSnackbar({ children: `Date Range inputed is invalid`, severity: 'error' });
+      }
   }
 
   const onExportReportDefects= () =>{
+      let newDateStart = moment(inputReport?.dateStart).isBetween(moment('2000','YYYY'), moment().add(3,'y'));
+      let newDateEnd = moment(inputReport?.dateEnd).isBetween(moment('2000','YYYY'), moment().add(3,'y'));
 
+      let flag = true;
+     
+      if (inputReport?.itemCode.length > 0) {
+        const hasShortItem = inputReport?.itemCode.some((itm) => itm.length < 3);
+        if (hasShortItem) {
+          flag = false; // Set flag to false if any item is too short
+          setSnackbar({
+            children: `ItemCode inputted must have a minimum of 3 characters per item, separated by commas.`,
+            severity: 'error',
+          });
+        }
+      }
+
+      if (inputReport?.color.length > 0) {
+        const hasShortItem = inputReport?.color.some((itm) => itm.length < 3);
+        if (hasShortItem) {
+          flag = false; // Set flag to false if any item is too short
+          setSnackbar({
+            children: `Color inputted must have a minimum of 3 characters per item, separated by commas.`,
+            severity: 'error',
+          });
+        }
+      }
+
+      if( !newDateStart || !newDateEnd ){
+         flag = false;
+         setSnackbar({ children: `Date Range inputed is invalid`, severity: 'error' });
+
+      }
+      if(flag === true){
+        dispatch(getExportDefectsReport({
+          itemcode: inputReport?.itemCode || '',
+          color: inputReport?.color || '',
+          datestart: inputReport?.dateStart || '',
+          dateend: inputReport?.dateEnd || '',
+          buyer: inputReport?.buyer?._id || '',
+          supplier: inputReport?.supplier || [],
+          material: inputReport?.material?._id || ''}));
+  
+          setIsLoading(true);
+      }
+  }
+
+  const onExportReportSuppliersSummary= () =>{
 
     let newDateStart = moment(inputReport?.dateStart).isBetween(moment('2000','YYYY'), moment().add(3,'y'));
     let newDateEnd = moment(inputReport?.dateEnd).isBetween(moment('2000','YYYY'), moment().add(3,'y'));
 
-    if( newDateStart && newDateEnd ){
-      dispatch(getExportDefectsReport({
+    let flag = true;
+   
+    if (inputReport?.itemCode.length > 0) {
+      const hasShortItem = inputReport?.itemCode.some((itm) => itm.length < 3);
+      if (hasShortItem) {
+        flag = false; // Set flag to false if any item is too short
+        setSnackbar({
+          children: `ItemCode inputted must have a minimum of 3 characters per item, separated by commas.`,
+          severity: 'error',
+        });
+      }
+    }
+
+    if (inputReport?.color.length > 0) {
+      const hasShortItem = inputReport?.color.some((itm) => itm.length < 3);
+      if (hasShortItem) {
+        flag = false; // Set flag to false if any item is too short
+        setSnackbar({
+          children: `Color inputted must have a minimum of 3 characters per item, separated by commas.`,
+          severity: 'error',
+        });
+      }
+    }
+
+    if( !newDateStart || !newDateEnd ){
+       flag = false;
+       setSnackbar({ children: `Date Range inputed is invalid`, severity: 'error' });
+
+    }
+    if(flag === true){
+      dispatch(getExportSuppliersSummaryReport({
         itemcode: inputReport?.itemCode || '',
         color: inputReport?.color || '',
         datestart: inputReport?.dateStart || '',
@@ -711,8 +1178,56 @@ const InspectionTable = () => {
         material: inputReport?.material?._id || ''}));
 
         setIsLoading(true);
-    }else
-      setSnackbar({ children: `Date Range inputed is invalid`, severity: 'error' });
+    }
+  }
+
+  const onExportReportItemsSummary= () =>{
+
+
+    let newDateStart = moment(inputReport?.dateStart).isBetween(moment('2000','YYYY'), moment().add(3,'y'));
+    let newDateEnd = moment(inputReport?.dateEnd).isBetween(moment('2000','YYYY'), moment().add(3,'y'));
+
+    let flag = true;
+   
+    if (inputReport?.itemCode.length > 0) {
+      const hasShortItem = inputReport?.itemCode.some((itm) => itm.length < 3);
+      if (hasShortItem) {
+        flag = false; // Set flag to false if any item is too short
+        setSnackbar({
+          children: `ItemCode inputted must have a minimum of 3 characters per item, separated by commas.`,
+          severity: 'error',
+        });
+      }
+    }
+
+    if (inputReport?.color.length > 0) {
+      const hasShortItem = inputReport?.color.some((itm) => itm.length < 3);
+      if (hasShortItem) {
+        flag = false; // Set flag to false if any item is too short
+        setSnackbar({
+          children: `Color inputted must have a minimum of 3 characters per item, separated by commas.`,
+          severity: 'error',
+        });
+      }
+    }
+
+    if( !newDateStart || !newDateEnd ){
+       flag = false;
+       setSnackbar({ children: `Date Range inputed is invalid`, severity: 'error' });
+
+    }
+    if(flag === true){
+      dispatch(getExportItemsSummaryReport({
+        itemcode: inputReport?.itemCode || '',
+        color: inputReport?.color || '',
+        datestart: inputReport?.dateStart || '',
+        dateend: inputReport?.dateEnd || '',
+        buyer: inputReport?.buyer?._id || '',
+        supplier: inputReport?.supplier || [],
+        material: inputReport?.material?._id || ''}));
+
+        setIsLoading(true);
+    }
   }
 
   return (
@@ -897,12 +1412,19 @@ const InspectionTable = () => {
               columnGroupingModel={columnGroupingModel}
               experimentalFeatures={{ columnGrouping: true }}
 
-              columnVisibilityModel={{
-                emptyDefect: false,
-              }}
+             
              
               initialState={{
-                pinnedColumns: { left: ['inspectiondate', 'supplier', 'itemcode', 'itemdescription', 'buyer', 'material'] }
+                pinnedColumns: { left: ['inspectiondate', 'supplier', 'itemcode', 'itemdescription', 'buyer', 'material'] },
+                columns: {
+                  columnVisibilityModel: {
+                    emptyDefect: false,
+                    passIssues: false,
+                    timestart: false,
+                    timeend: false,
+                    dateclosure: false,
+                  },
+                }
               }}
 
               getRowClassName={(params)=>{
@@ -920,9 +1442,17 @@ const InspectionTable = () => {
                   return 'false-itemcode-cell';
                 }
 
-                return  params.field === "firstpassmajor"
-                || params.field === "firstpassgood" 
-                || params.field === "firstpasspullout"
+                if (params.field === 'firstpassmajor' && params.row.passIssues.firstDefect === 1) {
+                  return 'false-itemcode-cell';
+                }
+                if (params.field === 'firstpasspullout' && params.row.passIssues.firstPullOut === 1) {
+                  return 'false-itemcode-cell';
+                }
+                if (params.field === 'secondpasspullout' && params.row.passIssues.secondPullOut === 1) {
+                  return 'false-itemcode-cell';
+                }
+
+                return  params.field === "firstpassgood" 
                 || params.field === "totalgood"  
                 || params.field === "totalpullout"
                 ? "highlight" : ""
@@ -1048,9 +1578,30 @@ const InspectionTable = () => {
                     '& .MuiTextField-root': { m: 1, width: '40ch' },
                 }}>
                     <DatePicker label="Inspection Start" size='small' maxDate={moment().add(3,'y')} minDate={moment('2000','YYYY')} onChange={(e)=>handleOnChangeInputReport("dateStart",e)} value={inputReport?.dateStart}/>
-                    <DatePicker label="Inspection End" size='small' maxDate={moment().add(3,'y')} minDate={moment('2000','YYYY')} onChange={(e)=>handleOnChangeInputReport("dateEnd",e)} value={inputReport?.dateEnd}/>   
-                    <TextField  value={inputReport?.itemCode} onChange={(e)=>handleOnChangeInputReport("itemCode",e)} fullWidth label="ItemCode" size='small' variant="outlined" />
-                      <TextField  value={inputReport?.color} onChange={(e)=>handleOnChangeInputReport("color",e)} fullWidth label="Color" size='small' variant="outlined" />
+                    <DatePicker label="Inspection End" size='small' maxDate={moment().add(3,'y')} minDate={moment('2000','YYYY')} onChange={(e)=>handleOnChangeInputReport("dateEnd",e)} value={inputReport?.dateEnd}/>  
+                    <Tooltip 
+                      title={
+                              <Typography color="inherit">
+                              <span style={{color:'#fff'}}>
+                                  accepts multiple values separated by commas minimum of 3 characters, example  <span style={{color:'#fab1a0'}}>"pf9,982,blk"</span>
+                              </span>
+                              </Typography>
+                          } placement="right"
+                      arrow>
+                       <TextField  onChange={(e) => handleOnChangeInputReport("itemCode", e)}  fullWidth label="ItemCode" size='small' variant="outlined" />
+                    </Tooltip>
+                    
+                    <Tooltip
+                      title={
+                              <Typography color="inherit">
+                              <span style={{color:'#fff'}}>
+                                  accepts multiple values separated by commas minimum of 3 characters, example  <span style={{color:'#fab1a0'}}>"red,age,gra"</span>
+                              </span>
+                              </Typography>
+                          } placement="right"
+                      arrow>
+                       <TextField onChange={(e) => handleOnChangeInputReport("color", e)}  fullWidth label="Color" size='small' variant="outlined" />
+                    </Tooltip>
                       <Autocomplete
                           disablePortal
                           id="combo-box-demo"
@@ -1064,6 +1615,7 @@ const InspectionTable = () => {
                           sx={{ width: 250 }}
                           renderInput={(params) => <TextField {...params} label="Material" />}
                           />
+                      <Typography className="" sx={{mt:15}}>Note: Color inputed, depends only on the itemCode data retrieve</Typography>
                     </Box>
                 </Grid>
                 <Grid xs={4} md={4} lg={4}>
@@ -1114,10 +1666,16 @@ const InspectionTable = () => {
                           <Button variant="contained" color="primary" onClick={onExportReportList} size="medium" fullWidth startIcon={<Assessment/>}>{` (Inspecion,Defects) List`}</Button>
                         </Grid>
                         <Grid xs={10} md={10} lg={10}>
-                          <Button variant="contained" color="success" onClick={onExportReportSum} size="medium" fullWidth startIcon={<Assessment/>}>  Summary </Button>
+                          <Button variant="contained" color="success" sx={{fontSize:10}} onClick={onExportReportSum} size="medium" fullWidth startIcon={<Assessment/>}>  {`Summary(supplier,itemcode,buyer,material)`} </Button>
                         </Grid>
                         <Grid xs={10} md={10} lg={10}>
                           <Button variant="contained" color="warning" onClick={onExportReportDefects} size="medium" fullWidth startIcon={<Assessment/>}> Defects Datas </Button>
+                        </Grid>
+                        <Grid xs={10} md={10} lg={10}>
+                          <Button variant="contained" color="success" onClick={onExportReportSuppliersSummary} size="medium" fullWidth startIcon={<Assessment/>}> Suppliers Summary </Button>
+                        </Grid>
+                        <Grid xs={10} md={10} lg={10}>
+                          <Button variant="contained" color="primary" onClick={onExportReportItemsSummary} size="medium" fullWidth startIcon={<Assessment/>}> Items Summary </Button>
                         </Grid>
                         <Grid xs={8} md={8} lg={8}>
                           <Button variant="outlined" color="error" onClick={onClearReport} size="medium" fullWidth startIcon={<Save/>}> Clear</Button>
